@@ -5,7 +5,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,11 +27,15 @@ func main() {
 func run() error {
 	flag.CommandLine.SetOutput(os.Stderr)
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -endpoint URL [options]\n\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -endpoint URL [options]\n       %s -endpoint URL -browse-path PATH [options]\n\n", os.Args[0], os.Args[0])
 		flag.PrintDefaults()
 	}
 
 	endpoint := flag.String("endpoint", "", "OPC XML-DA endpoint URL")
+	browsePath := flag.String("browse-path", "", "OPC browse path (maps to ItemName)")
+	browseItemPath := flag.String("browse-item-path", "", "OPC browse item path (maps to ItemPath)")
+	browseDepth := flag.Int("browse-depth", 1, "Max browse depth (1 = direct children only)")
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	locale := flag.String("locale", "", "Locale ID (optional)")
 	clientHandle := flag.String("client-handle", "", "Client request handle (optional)")
 	httpTimeout := flag.Duration("http-timeout", 30*time.Second, "HTTP dial timeout")
@@ -37,6 +43,12 @@ func run() error {
 	username := flag.String("username", "", "Basic auth username (optional)")
 	password := flag.String("password", "", "Basic auth password (optional)")
 	flag.Parse()
+
+	level, err := parseLogLevel(*logLevel)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 	if *endpoint == "" {
 		flag.Usage()
@@ -51,6 +63,13 @@ func run() error {
 	if *username != "" {
 		opts = append(opts, soap.WithBasicAuth(*username, *password))
 	}
+
+	mode := "status"
+	if *browsePath != "" || *browseItemPath != "" {
+		mode = "browse"
+	}
+	slog.Info("opc xml-da cli start", "mode", mode, "endpoint", *endpoint)
+	slog.Debug("soap timeouts configured", "http_timeout", *httpTimeout, "request_timeout", *requestTimeout)
 
 	client := soap.NewClient(*endpoint, opts...)
 	service := xmlda.NewOpcXmlDASoap(client)
@@ -68,6 +87,15 @@ func run() error {
 		defer cancel()
 	}
 
+	if *browsePath != "" || *browseItemPath != "" {
+		if *browseDepth < 1 {
+			return fmt.Errorf("browse-depth must be >= 1")
+		}
+		slog.Info("browse requested", "item_path", *browseItemPath, "item_name", *browsePath, "max_depth", *browseDepth)
+		return browseOpcTree(ctx, service, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
+	}
+
+	slog.Info("get status requested")
 	resp, err := service.GetStatusContext(ctx, req)
 	if err != nil {
 		return fmt.Errorf("get status: %w", err)
@@ -75,6 +103,141 @@ func run() error {
 
 	printStatus(resp)
 	return nil
+}
+
+func browseOpcTree(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string, maxDepth int) error {
+	rootLabel := itemName
+	if rootLabel == "" {
+		rootLabel = itemPath
+	}
+	if rootLabel == "" {
+		rootLabel = "<root>"
+	}
+	fmt.Println(rootLabel)
+	if maxDepth <= 0 {
+		return nil
+	}
+
+	visited := map[string]struct{}{
+		makeBrowseKey(itemPath, itemName): {},
+	}
+	return browseOpcChildren(ctx, service, locale, clientHandle, itemPath, itemName, "  ", 1, maxDepth, visited)
+}
+
+func browseOpcChildren(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName, indent string, depth, maxDepth int, visited map[string]struct{}) error {
+	elements, err := fetchBrowseElements(ctx, service, locale, clientHandle, itemPath, itemName)
+	if err != nil {
+		return err
+	}
+
+	sort.Slice(elements, func(i, j int) bool {
+		return browseElementName(elements[i]) < browseElementName(elements[j])
+	})
+
+	for _, el := range elements {
+		name := browseElementName(el)
+		suffix := ""
+		if el.HasChildren {
+			suffix = "/"
+		}
+		fmt.Printf("%s%s%s\n", indent, name, suffix)
+
+		if el.HasChildren && depth < maxDepth {
+			key := makeBrowseKey(el.ItemPath, el.ItemName)
+			if _, ok := visited[key]; ok {
+				continue
+			}
+			visited[key] = struct{}{}
+			if err := browseOpcChildren(ctx, service, locale, clientHandle, el.ItemPath, el.ItemName, indent+"  ", depth+1, maxDepth, visited); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func fetchBrowseElements(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string) ([]*xmlda.BrowseElement, error) {
+	var all []*xmlda.BrowseElement
+	continuation := ""
+	filter := xmlda.BrowseFilterAll
+
+	for {
+		slog.Debug("browse page request", "item_path", itemPath, "item_name", itemName, "continuation", continuation)
+		req := &xmlda.Browse{
+			LocaleID:            locale,
+			ClientRequestHandle: clientHandle,
+			ItemPath:            itemPath,
+			ItemName:            itemName,
+			ContinuationPoint:   continuation,
+			BrowseFilter:        &filter,
+			ReturnErrorText:     true,
+		}
+
+		resp, err := service.BrowseContext(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("browse: %w", err)
+		}
+		if resp == nil {
+			return nil, fmt.Errorf("browse: empty response")
+		}
+		if len(resp.Errors) > 0 {
+			return nil, fmt.Errorf("browse: %s", formatOPCErrors(resp.Errors))
+		}
+		slog.Debug("browse page response", "elements", len(resp.Elements), "more_elements", resp.MoreElements)
+		all = append(all, resp.Elements...)
+
+		if !resp.MoreElements || resp.ContinuationPoint == "" {
+			break
+		}
+		continuation = resp.ContinuationPoint
+	}
+
+	return all, nil
+}
+
+func browseElementName(el *xmlda.BrowseElement) string {
+	if el == nil {
+		return "<nil>"
+	}
+	if el.Name != "" {
+		return el.Name
+	}
+	if el.ItemName != "" {
+		return el.ItemName
+	}
+	if el.ItemPath != "" {
+		return el.ItemPath
+	}
+	return "<unnamed>"
+}
+
+func makeBrowseKey(itemPath, itemName string) string {
+	return itemPath + "\x00" + itemName
+}
+
+func formatOPCErrors(errors []*xmlda.OPCError) string {
+	if len(errors) == 0 {
+		return "unknown error"
+	}
+
+	parts := make([]string, 0, len(errors))
+	for _, err := range errors {
+		if err == nil {
+			continue
+		}
+		if err.ID != nil && *err.ID != "" {
+			parts = append(parts, fmt.Sprintf("%s: %s", *err.ID, err.Text))
+			continue
+		}
+		if err.Text != "" {
+			parts = append(parts, err.Text)
+		}
+	}
+	if len(parts) == 0 {
+		return "unknown error"
+	}
+	return strings.Join(parts, "; ")
 }
 
 // printStatus renders the response fields in a readable format.
@@ -142,4 +305,19 @@ func formatXsdDateTime(dt xmlda.XSDDateTime) string {
 		return ""
 	}
 	return t.Format(time.RFC3339Nano)
+}
+
+func parseLogLevel(value string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "info":
+		return slog.LevelInfo, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("invalid log-level: %q", value)
+	}
 }
