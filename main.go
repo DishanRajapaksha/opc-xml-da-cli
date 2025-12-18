@@ -136,7 +136,7 @@ func printStatus(resp *xmlda.GetStatusResponse) {
 }
 
 // formatXsdDateTime converts the SOAP datetime to RFC3339 when set.
-func formatXsdDateTime(dt soap.XSDDateTime) string {
+func formatXsdDateTime(dt xmlda.XSDDateTime) string {
 	t := dt.ToGoTime()
 	if t.IsZero() {
 		return ""

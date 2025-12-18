@@ -21,6 +21,8 @@ type AnyURI string
 
 type NCName string
 
+type QName string
+
 type ServerState string
 
 const (
@@ -180,7 +182,7 @@ type SubscriptionPolledRefresh struct {
 
 	ServerSubHandles []string `xml:"ServerSubHandles,omitempty" json:"ServerSubHandles,omitempty"`
 
-	HoldTime soap.XSDDateTime `xml:"HoldTime,attr,omitempty" json:"HoldTime,omitempty"`
+	HoldTime XSDDateTime `xml:"HoldTime,attr,omitempty" json:"HoldTime,omitempty"`
 
 	WaitTime int32 `xml:"WaitTime,attr,omitempty" json:"WaitTime,omitempty"`
 
@@ -298,9 +300,9 @@ type WriteResponse struct {
 }
 
 type ReplyBase struct {
-	RcvTime soap.XSDDateTime `xml:"RcvTime,attr,omitempty" json:"RcvTime,omitempty"`
+	RcvTime XSDDateTime `xml:"RcvTime,attr,omitempty" json:"RcvTime,omitempty"`
 
-	ReplyTime soap.XSDDateTime `xml:"ReplyTime,attr,omitempty" json:"ReplyTime,omitempty"`
+	ReplyTime XSDDateTime `xml:"ReplyTime,attr,omitempty" json:"ReplyTime,omitempty"`
 
 	ClientRequestHandle string `xml:"ClientRequestHandle,attr,omitempty" json:"ClientRequestHandle,omitempty"`
 
@@ -318,7 +320,7 @@ type ServerStatus struct {
 
 	SupportedInterfaceVersions []*InterfaceVersion `xml:"SupportedInterfaceVersions,omitempty" json:"SupportedInterfaceVersions,omitempty"`
 
-	StartTime soap.XSDDateTime `xml:"StartTime,attr,omitempty" json:"StartTime,omitempty"`
+	StartTime XSDDateTime `xml:"StartTime,attr,omitempty" json:"StartTime,omitempty"`
 
 	ProductVersion string `xml:"ProductVersion,attr,omitempty" json:"ProductVersion,omitempty"`
 }
@@ -409,7 +411,7 @@ type ArrayOfString struct {
 }
 
 type ArrayOfDateTime struct {
-	DateTime []soap.XSDDateTime `xml:"dateTime,omitempty" json:"dateTime,omitempty"`
+	DateTime []XSDDateTime `xml:"dateTime,omitempty" json:"dateTime,omitempty"`
 }
 
 type ArrayOfAnyType struct {
@@ -428,7 +430,7 @@ type RequestOptions struct {
 
 	ReturnItemName bool `xml:"ReturnItemName,attr,omitempty" json:"ReturnItemName,omitempty"`
 
-	RequestDeadline soap.XSDDateTime `xml:"RequestDeadline,attr,omitempty" json:"RequestDeadline,omitempty"`
+	RequestDeadline XSDDateTime `xml:"RequestDeadline,attr,omitempty" json:"RequestDeadline,omitempty"`
 
 	ClientRequestHandle string `xml:"ClientRequestHandle,attr,omitempty" json:"ClientRequestHandle,omitempty"`
 
@@ -493,7 +495,7 @@ type ItemValue struct {
 
 	ClientItemHandle string `xml:"ClientItemHandle,attr,omitempty" json:"ClientItemHandle,omitempty"`
 
-	Timestamp soap.XSDDateTime `xml:"Timestamp,attr,omitempty" json:"Timestamp,omitempty"`
+	Timestamp XSDDateTime `xml:"Timestamp,attr,omitempty" json:"Timestamp,omitempty"`
 
 	ResultID *QName `xml:"ResultID,attr,omitempty" json:"ResultID,omitempty"`
 }
