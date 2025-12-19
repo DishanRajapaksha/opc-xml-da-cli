@@ -34,7 +34,7 @@ func main() {
 func run() error {
 	flag.CommandLine.SetOutput(os.Stderr)
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -endpoint URL [options]\n       %s -endpoint URL -browse-path PATH [options]\n\n", os.Args[0], os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -endpoint URL [options]\n       %s -endpoint URL -browse-path PATH [options]\n       %s -endpoint URL -read-path PATH [options]\n\n", os.Args[0], os.Args[0], os.Args[0])
 		flag.PrintDefaults()
 	}
 
@@ -42,6 +42,8 @@ func run() error {
 	browsePath := flag.String("browse-path", "", "OPC browse path (maps to ItemName)")
 	browseItemPath := flag.String("browse-item-path", "", "OPC browse item path (maps to ItemPath)")
 	browseDepth := flag.Int("browse-depth", defaultBrowseDepth, "Max browse depth (1 = direct children only)")
+	readPath := flag.String("read-path", "", "OPC read item name (maps to ItemName)")
+	readItemPath := flag.String("read-item-path", "", "OPC read item path (maps to ItemPath)")
 	netDebug := flag.Bool("net-debug", false, "Enable HTTP request/response debug logging")
 	logLevel := flag.String("log-level", defaultLogLevel, "Log level (debug, info, warn, error)")
 	locale := flag.String("locale", "", "Locale ID (optional)")
@@ -78,9 +80,16 @@ func run() error {
 	}
 
 	browseRequested := *browsePath != "" || *browseItemPath != ""
+	readRequested := *readPath != "" || *readItemPath != ""
+	if browseRequested && readRequested {
+		return fmt.Errorf("choose either browse or read options, not both")
+	}
 	mode := "status"
 	if browseRequested {
 		mode = "browse"
+	}
+	if readRequested {
+		mode = "read"
 	}
 	slog.Info("opc xml-da cli start", "mode", mode, "endpoint", *endpoint)
 	slog.Debug("soap timeouts configured", "http_timeout", *httpTimeout, "request_timeout", *requestTimeout)
@@ -102,6 +111,18 @@ func run() error {
 		}
 		slog.Info("browse requested", "item_path", *browseItemPath, "item_name", *browsePath, "max_depth", *browseDepth)
 		return cli.BrowseOpcTree(ctx, os.Stdout, opcService, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
+	}
+
+	if readRequested {
+		slog.Info("read requested", "item_path", *readItemPath, "item_name", *readPath)
+		resp, err := cli.FetchNodeValue(ctx, opcService, *locale, *clientHandle, *readItemPath, *readPath)
+		if err != nil {
+			return fmt.Errorf("read: %w", err)
+		}
+		if err := cli.PrintRead(os.Stdout, resp); err != nil {
+			return fmt.Errorf("print read: %w", err)
+		}
+		return nil
 	}
 
 	slog.Info("get status requested")
