@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sort"
 	"strings"
@@ -10,7 +12,12 @@ import (
 	"opc-xml-da-cli/service"
 )
 
-func BrowseOpcTree(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string, maxDepth int) error {
+// BrowseOpcTree writes a hierarchical browse tree to out.
+func BrowseOpcTree(ctx context.Context, out io.Writer, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string, maxDepth int) error {
+	if out == nil {
+		return errors.New("output is nil")
+	}
+
 	rootLabel := itemName
 	if rootLabel == "" {
 		rootLabel = itemPath
@@ -18,7 +25,9 @@ func BrowseOpcTree(ctx context.Context, svc service.OpcXmlDASoap, locale, client
 	if rootLabel == "" {
 		rootLabel = "<root>"
 	}
-	fmt.Println(rootLabel)
+	if _, err := fmt.Fprintln(out, rootLabel); err != nil {
+		return err
+	}
 	if maxDepth <= 0 {
 		return nil
 	}
@@ -26,10 +35,10 @@ func BrowseOpcTree(ctx context.Context, svc service.OpcXmlDASoap, locale, client
 	visited := map[string]struct{}{
 		makeBrowseKey(itemPath, itemName): {},
 	}
-	return browseOpcChildren(ctx, svc, locale, clientHandle, itemPath, itemName, "  ", 1, maxDepth, visited)
+	return browseOpcChildren(ctx, out, svc, locale, clientHandle, itemPath, itemName, "  ", 1, maxDepth, visited)
 }
 
-func browseOpcChildren(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName, indent string, depth, maxDepth int, visited map[string]struct{}) error {
+func browseOpcChildren(ctx context.Context, out io.Writer, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName, indent string, depth, maxDepth int, visited map[string]struct{}) error {
 	elements, err := fetchBrowseElements(ctx, svc, locale, clientHandle, itemPath, itemName)
 	if err != nil {
 		return err
@@ -45,7 +54,9 @@ func browseOpcChildren(ctx context.Context, svc service.OpcXmlDASoap, locale, cl
 		if el.HasChildren {
 			suffix = "/"
 		}
-		fmt.Printf("%s%s%s\n", indent, name, suffix)
+		if _, err := fmt.Fprintf(out, "%s%s%s\n", indent, name, suffix); err != nil {
+			return err
+		}
 
 		if el.HasChildren && depth < maxDepth {
 			key := makeBrowseKey(el.ItemPath, el.ItemName)
@@ -53,7 +64,7 @@ func browseOpcChildren(ctx context.Context, svc service.OpcXmlDASoap, locale, cl
 				continue
 			}
 			visited[key] = struct{}{}
-			if err := browseOpcChildren(ctx, svc, locale, clientHandle, el.ItemPath, el.ItemName, indent+"  ", depth+1, maxDepth, visited); err != nil {
+			if err := browseOpcChildren(ctx, out, svc, locale, clientHandle, el.ItemPath, el.ItemName, indent+"  ", depth+1, maxDepth, visited); err != nil {
 				return err
 			}
 		}
@@ -121,13 +132,13 @@ func makeBrowseKey(itemPath, itemName string) string {
 	return itemPath + "\x00" + itemName
 }
 
-func formatOPCErrors(errors []*service.OPCError) string {
-	if len(errors) == 0 {
+func formatOPCErrors(opcErrors []*service.OPCError) string {
+	if len(opcErrors) == 0 {
 		return "unknown error"
 	}
 
-	parts := make([]string, 0, len(errors))
-	for _, err := range errors {
+	parts := make([]string, 0, len(opcErrors))
+	for _, err := range opcErrors {
 		if err == nil {
 			continue
 		}

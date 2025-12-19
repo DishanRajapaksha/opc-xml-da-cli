@@ -16,6 +16,13 @@ import (
 	"opc-xml-da-cli/service"
 )
 
+const (
+	defaultBrowseDepth    = 1
+	defaultHTTPTimeout    = 30 * time.Second
+	defaultRequestTimeout = 90 * time.Second
+	defaultLogLevel       = "info"
+)
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -34,13 +41,13 @@ func run() error {
 	endpoint := flag.String("endpoint", "", "OPC XML-DA endpoint URL")
 	browsePath := flag.String("browse-path", "", "OPC browse path (maps to ItemName)")
 	browseItemPath := flag.String("browse-item-path", "", "OPC browse item path (maps to ItemPath)")
-	browseDepth := flag.Int("browse-depth", 1, "Max browse depth (1 = direct children only)")
+	browseDepth := flag.Int("browse-depth", defaultBrowseDepth, "Max browse depth (1 = direct children only)")
 	netDebug := flag.Bool("net-debug", false, "Enable HTTP request/response debug logging")
-	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	logLevel := flag.String("log-level", defaultLogLevel, "Log level (debug, info, warn, error)")
 	locale := flag.String("locale", "", "Locale ID (optional)")
 	clientHandle := flag.String("client-handle", "", "Client request handle (optional)")
-	httpTimeout := flag.Duration("http-timeout", 30*time.Second, "HTTP dial timeout")
-	requestTimeout := flag.Duration("request-timeout", 90*time.Second, "End-to-end request timeout")
+	httpTimeout := flag.Duration("http-timeout", defaultHTTPTimeout, "HTTP dial timeout")
+	requestTimeout := flag.Duration("request-timeout", defaultRequestTimeout, "End-to-end request timeout")
 	username := flag.String("username", "", "Basic auth username (optional)")
 	password := flag.String("password", "", "Basic auth password (optional)")
 	flag.Parse()
@@ -60,7 +67,7 @@ func run() error {
 	}
 
 	// Configure SOAP timeouts and optional basic auth.
-	opts := []soap.Option{}
+	var opts []soap.Option
 	if *netDebug {
 		opts = append(opts, soap.WithHTTPClient(cli.NewDebugHTTPClient(*httpTimeout, *requestTimeout)))
 	} else {
@@ -70,8 +77,9 @@ func run() error {
 		opts = append(opts, soap.WithBasicAuth(*username, *password))
 	}
 
+	browseRequested := *browsePath != "" || *browseItemPath != ""
 	mode := "status"
-	if *browsePath != "" || *browseItemPath != "" {
+	if browseRequested {
 		mode = "browse"
 	}
 	slog.Info("opc xml-da cli start", "mode", mode, "endpoint", *endpoint)
@@ -88,12 +96,12 @@ func run() error {
 		defer cancel()
 	}
 
-	if *browsePath != "" || *browseItemPath != "" {
+	if browseRequested {
 		if *browseDepth < 1 {
 			return fmt.Errorf("browse-depth must be >= 1")
 		}
 		slog.Info("browse requested", "item_path", *browseItemPath, "item_name", *browsePath, "max_depth", *browseDepth)
-		return cli.BrowseOpcTree(ctx, opcService, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
+		return cli.BrowseOpcTree(ctx, os.Stdout, opcService, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
 	}
 
 	slog.Info("get status requested")
@@ -102,7 +110,9 @@ func run() error {
 		return fmt.Errorf("get status: %w", err)
 	}
 
-	cli.PrintStatus(resp)
+	if err := cli.PrintStatus(os.Stdout, resp); err != nil {
+		return fmt.Errorf("print status: %w", err)
+	}
 	return nil
 }
 

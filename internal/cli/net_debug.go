@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
+// MaxDebugBodyBytes caps the number of bytes captured for HTTP debug logs.
 const MaxDebugBodyBytes int64 = 64 * 1024
 
-var netDebugSeq uint64
-
+// NewDebugHTTPClient builds an HTTP client that logs request/response details.
 func NewDebugHTTPClient(httpTimeout, requestTimeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if httpTimeout > 0 {
@@ -40,13 +40,15 @@ type loggingRoundTripper struct {
 	base         http.RoundTripper
 	maxBodyBytes int64
 	logger       *slog.Logger
+	seq          uint64
 }
 
 func (rt *loggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if rt.base == nil {
-		rt.base = http.DefaultTransport
+	base := rt.base
+	if base == nil {
+		base = http.DefaultTransport
 	}
-	id := atomic.AddUint64(&netDebugSeq, 1)
+	id := atomic.AddUint64(&rt.seq, 1)
 	start := time.Now()
 	logger := rt.logger
 	if logger == nil {
@@ -121,7 +123,7 @@ func (rt *loggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	}
 
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-	resp, err := rt.base.RoundTrip(req)
+	resp, err := base.RoundTrip(req)
 	if err != nil {
 		logger.Info("http response error", "id", id, "err", err, "elapsed", time.Since(start))
 		return nil, err

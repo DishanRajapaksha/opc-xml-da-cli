@@ -8,10 +8,12 @@ import (
 	"github.com/hooklift/gowsdl/soap"
 )
 
+// XSDDateTime wraps soap.XSDDateTime with RFC3339 handling.
 type XSDDateTime struct {
 	soap.XSDDateTime
 }
 
+// UnmarshalXMLAttr parses an XML attribute into an XSDDateTime.
 func (xdt *XSDDateTime) UnmarshalXMLAttr(attr xml.Attr) error {
 	parsed, hasTz, err := parseXsdDateTime(attr.Value)
 	if err != nil {
@@ -21,6 +23,7 @@ func (xdt *XSDDateTime) UnmarshalXMLAttr(attr xml.Attr) error {
 	return nil
 }
 
+// MarshalXMLAttr formats the XSDDateTime as an XML attribute.
 func (xdt XSDDateTime) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
 	t := xdt.ToGoTime()
 	if t.IsZero() {
