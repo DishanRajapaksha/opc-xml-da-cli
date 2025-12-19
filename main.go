@@ -12,7 +12,8 @@ import (
 
 	"github.com/hooklift/gowsdl/soap"
 
-	"opc-xml-da-cli/xmlda"
+	"opc-xml-da-cli/internal/cli"
+	"opc-xml-da-cli/service"
 )
 
 func main() {
@@ -50,7 +51,7 @@ func run() error {
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 	if *netDebug {
-		slog.Info("network debug enabled", "max_body_bytes", maxDebugBodyBytes)
+		slog.Info("network debug enabled", "max_body_bytes", cli.MaxDebugBodyBytes)
 	}
 
 	if *endpoint == "" {
@@ -61,7 +62,7 @@ func run() error {
 	// Configure SOAP timeouts and optional basic auth.
 	opts := []soap.Option{}
 	if *netDebug {
-		opts = append(opts, soap.WithHTTPClient(newDebugHTTPClient(*httpTimeout, *requestTimeout)))
+		opts = append(opts, soap.WithHTTPClient(cli.NewDebugHTTPClient(*httpTimeout, *requestTimeout)))
 	} else {
 		opts = append(opts, soap.WithTimeout(*httpTimeout), soap.WithRequestTimeout(*requestTimeout))
 	}
@@ -77,7 +78,7 @@ func run() error {
 	slog.Debug("soap timeouts configured", "http_timeout", *httpTimeout, "request_timeout", *requestTimeout)
 
 	client := soap.NewClient(*endpoint, opts...)
-	service := xmlda.NewOpcXmlDASoap(client)
+	opcService := service.NewOpcXmlDASoap(client)
 
 	// Use a request-scoped context to bound the call.
 	ctx := context.Background()
@@ -92,16 +93,16 @@ func run() error {
 			return fmt.Errorf("browse-depth must be >= 1")
 		}
 		slog.Info("browse requested", "item_path", *browseItemPath, "item_name", *browsePath, "max_depth", *browseDepth)
-		return browseOpcTree(ctx, service, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
+		return cli.BrowseOpcTree(ctx, opcService, *locale, *clientHandle, *browseItemPath, *browsePath, *browseDepth)
 	}
 
 	slog.Info("get status requested")
-	resp, err := fetchServerStatus(ctx, service, *locale, *clientHandle)
+	resp, err := cli.FetchServerStatus(ctx, opcService, *locale, *clientHandle)
 	if err != nil {
 		return fmt.Errorf("get status: %w", err)
 	}
 
-	printStatus(resp)
+	cli.PrintStatus(resp)
 	return nil
 }
 

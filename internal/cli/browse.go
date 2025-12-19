@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"opc-xml-da-cli/xmlda"
+	"opc-xml-da-cli/service"
 )
 
-func browseOpcTree(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string, maxDepth int) error {
+func BrowseOpcTree(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string, maxDepth int) error {
 	rootLabel := itemName
 	if rootLabel == "" {
 		rootLabel = itemPath
@@ -26,11 +26,11 @@ func browseOpcTree(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clie
 	visited := map[string]struct{}{
 		makeBrowseKey(itemPath, itemName): {},
 	}
-	return browseOpcChildren(ctx, service, locale, clientHandle, itemPath, itemName, "  ", 1, maxDepth, visited)
+	return browseOpcChildren(ctx, svc, locale, clientHandle, itemPath, itemName, "  ", 1, maxDepth, visited)
 }
 
-func browseOpcChildren(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName, indent string, depth, maxDepth int, visited map[string]struct{}) error {
-	elements, err := fetchBrowseElements(ctx, service, locale, clientHandle, itemPath, itemName)
+func browseOpcChildren(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName, indent string, depth, maxDepth int, visited map[string]struct{}) error {
+	elements, err := fetchBrowseElements(ctx, svc, locale, clientHandle, itemPath, itemName)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func browseOpcChildren(ctx context.Context, service xmlda.OpcXmlDASoap, locale, 
 				continue
 			}
 			visited[key] = struct{}{}
-			if err := browseOpcChildren(ctx, service, locale, clientHandle, el.ItemPath, el.ItemName, indent+"  ", depth+1, maxDepth, visited); err != nil {
+			if err := browseOpcChildren(ctx, svc, locale, clientHandle, el.ItemPath, el.ItemName, indent+"  ", depth+1, maxDepth, visited); err != nil {
 				return err
 			}
 		}
@@ -62,14 +62,14 @@ func browseOpcChildren(ctx context.Context, service xmlda.OpcXmlDASoap, locale, 
 	return nil
 }
 
-func fetchBrowseElements(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string) ([]*xmlda.BrowseElement, error) {
-	var all []*xmlda.BrowseElement
+func fetchBrowseElements(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle, itemPath, itemName string) ([]*service.BrowseElement, error) {
+	var all []*service.BrowseElement
 	continuation := ""
-	filter := xmlda.BrowseFilterAll
+	filter := service.BrowseFilterAll
 
 	for {
 		slog.Debug("browse page request", "item_path", itemPath, "item_name", itemName, "continuation", continuation)
-		req := &xmlda.Browse{
+		req := &service.Browse{
 			LocaleID:            locale,
 			ClientRequestHandle: clientHandle,
 			ItemPath:            itemPath,
@@ -79,7 +79,7 @@ func fetchBrowseElements(ctx context.Context, service xmlda.OpcXmlDASoap, locale
 			ReturnErrorText:     true,
 		}
 
-		resp, err := service.BrowseContext(ctx, req)
+		resp, err := svc.BrowseContext(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("browse: %w", err)
 		}
@@ -101,7 +101,7 @@ func fetchBrowseElements(ctx context.Context, service xmlda.OpcXmlDASoap, locale
 	return all, nil
 }
 
-func browseElementName(el *xmlda.BrowseElement) string {
+func browseElementName(el *service.BrowseElement) string {
 	if el == nil {
 		return "<nil>"
 	}
@@ -121,7 +121,7 @@ func makeBrowseKey(itemPath, itemName string) string {
 	return itemPath + "\x00" + itemName
 }
 
-func formatOPCErrors(errors []*xmlda.OPCError) string {
+func formatOPCErrors(errors []*service.OPCError) string {
 	if len(errors) == 0 {
 		return "unknown error"
 	}

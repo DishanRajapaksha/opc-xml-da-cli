@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"context"
@@ -6,19 +6,19 @@ import (
 	"strings"
 	"time"
 
-	"opc-xml-da-cli/xmlda"
+	"opc-xml-da-cli/service"
 )
 
-func fetchServerStatus(ctx context.Context, service xmlda.OpcXmlDASoap, locale, clientHandle string) (*xmlda.GetStatusResponse, error) {
-	req := &xmlda.GetStatus{
+func FetchServerStatus(ctx context.Context, svc service.OpcXmlDASoap, locale, clientHandle string) (*service.GetStatusResponse, error) {
+	req := &service.GetStatus{
 		LocaleID:            locale,
 		ClientRequestHandle: clientHandle,
 	}
-	return service.GetStatusContext(ctx, req)
+	return svc.GetStatusContext(ctx, req)
 }
 
-// printStatus renders the response fields in a readable format.
-func printStatus(resp *xmlda.GetStatusResponse) {
+// PrintStatus renders the response fields in a readable format.
+func PrintStatus(resp *service.GetStatusResponse) {
 	if resp == nil {
 		fmt.Println("no response")
 		return
@@ -76,7 +76,7 @@ func printStatus(resp *xmlda.GetStatusResponse) {
 }
 
 // formatXsdDateTime converts the SOAP datetime to RFC3339 when set.
-func formatXsdDateTime(dt xmlda.XSDDateTime) string {
+func formatXsdDateTime(dt service.XSDDateTime) string {
 	t := dt.ToGoTime()
 	if t.IsZero() {
 		return ""

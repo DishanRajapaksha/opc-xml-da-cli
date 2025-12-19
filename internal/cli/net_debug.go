@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bytes"
@@ -13,11 +13,11 @@ import (
 	"time"
 )
 
-const maxDebugBodyBytes int64 = 64 * 1024
+const MaxDebugBodyBytes int64 = 64 * 1024
 
 var netDebugSeq uint64
 
-func newDebugHTTPClient(httpTimeout, requestTimeout time.Duration) *http.Client {
+func NewDebugHTTPClient(httpTimeout, requestTimeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if httpTimeout > 0 {
 		transport.DialContext = (&net.Dialer{
@@ -29,7 +29,7 @@ func newDebugHTTPClient(httpTimeout, requestTimeout time.Duration) *http.Client 
 	return &http.Client{
 		Transport: &loggingRoundTripper{
 			base:         transport,
-			maxBodyBytes: maxDebugBodyBytes,
+			maxBodyBytes: MaxDebugBodyBytes,
 			logger:       slog.Default().With("component", "net"),
 		},
 		Timeout: requestTimeout,

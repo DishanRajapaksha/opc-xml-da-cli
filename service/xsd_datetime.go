@@ -1,4 +1,4 @@
-package xmlda
+package service
 
 import (
 	"encoding/xml"
