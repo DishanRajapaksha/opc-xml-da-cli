@@ -58,11 +58,11 @@ func TestRunMissingEndpoint(t *testing.T) {
 
 func TestRunRejectsUnsupportedFormat(t *testing.T) {
 	var out, err bytes.Buffer
-	code := NewApp(&out, &err).Run([]string{"status", "--format", "json"})
+	code := NewApp(&out, &err).Run([]string{"status", "--format", "jsonl"})
 	if code != exitGeneralError {
-		t.Fatalf("Run(status --format json) = %d, want %d", code, exitGeneralError)
+		t.Fatalf("Run(status --format jsonl) = %d, want %d", code, exitGeneralError)
 	}
-	if !strings.Contains(err.String(), `invalid output format "json"`) {
+	if !strings.Contains(err.String(), `invalid output format "jsonl"`) {
 		t.Fatalf("stderr missing format error: %q", err.String())
 	}
 }

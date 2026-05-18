@@ -14,6 +14,7 @@ import (
 	"github.com/hooklift/gowsdl/soap"
 
 	"opc-xml-da-cli/internal/config"
+	"opc-xml-da-cli/internal/output"
 	"opc-xml-da-cli/service"
 )
 
@@ -178,7 +179,7 @@ func (a *App) status(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateTextFormat(opts.Format); err != nil {
+	if err := validateSnapshotFormat(opts.Format); err != nil {
 		return err
 	}
 	return a.runStatus(opts)
@@ -200,7 +201,7 @@ func (a *App) browse(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateTextFormat(opts.Format); err != nil {
+	if err := validateSnapshotFormat(opts.Format); err != nil {
 		return err
 	}
 	return a.runBrowse(opts)
@@ -224,7 +225,7 @@ func (a *App) read(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateTextFormat(opts.Format); err != nil {
+	if err := validateSnapshotFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -263,7 +264,7 @@ func (a *App) watch(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateTextFormat(opts.Format); err != nil {
+	if err := validateSnapshotFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -348,7 +349,7 @@ func (a *App) runStatus(opts commandOptions) error {
 	if err != nil {
 		return fmt.Errorf("get status: %w", err)
 	}
-	if err := PrintStatus(a.out, resp); err != nil {
+	if err := a.renderStatus(opts.Format, resp); err != nil {
 		return fmt.Errorf("print status: %w", err)
 	}
 	return nil
@@ -363,6 +364,13 @@ func (a *App) runBrowse(opts commandOptions) error {
 		return err
 	}
 	slog.Info("browse requested", "item_path", opts.BrowseItemPath, "item_name", opts.BrowsePath, "max_depth", opts.BrowseDepth)
+	if output.NormaliseFormat(opts.Format) != output.FormatText {
+		elements, err := fetchBrowseElements(ctx, opcService, opts.Locale, opts.ClientHandle, opts.BrowseItemPath, opts.BrowsePath)
+		if err != nil {
+			return err
+		}
+		return a.renderBrowse(opts.Format, elements)
+	}
 	return BrowseOpcTree(ctx, a.out, opcService, opts.Locale, opts.ClientHandle, opts.BrowseItemPath, opts.BrowsePath, opts.BrowseDepth)
 }
 
@@ -383,7 +391,7 @@ func (a *App) runRead(opts commandOptions) error {
 		if err != nil {
 			return fmt.Errorf("read: %w", err)
 		}
-		if err := PrintRead(a.out, resp); err != nil {
+		if err := a.renderRead(opts.Format, resp); err != nil {
 			return fmt.Errorf("print read: %w", err)
 		}
 	}
@@ -519,7 +527,7 @@ func (a *App) newFlagSet(name string) *flag.FlagSet {
 func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
 	fs.StringVar(&opts.ConfigPath, "config", opts.ConfigPath, "YAML config file")
 	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
-	fs.StringVar(&opts.Format, "format", opts.Format, "output format: text")
+	fs.StringVar(&opts.Format, "format", opts.Format, "output format: table, text, json, or jsonl where supported")
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
 	fs.BoolVar(&opts.NetDebug, "net-debug", opts.NetDebug, "enable HTTP request/response debug logging")
 	fs.StringVar(&opts.LogLevel, "log-level", opts.LogLevel, "log level: debug, info, warn, error")
@@ -564,11 +572,91 @@ func (opts *commandOptions) applyConfig(fs *flag.FlagSet) error {
 	return nil
 }
 
-func validateTextFormat(format string) error {
-	if strings.EqualFold(format, "text") {
-		return nil
+func (a *App) renderStatus(format string, resp *service.GetStatusResponse) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText:
+		return PrintStatus(a.out, resp)
+	case output.FormatJSON:
+		return output.WriteJSON(a.out, resp)
+	case output.FormatTable:
+		rows := [][]string{}
+		if resp != nil && resp.GetStatusResult != nil && resp.GetStatusResult.ServerState != nil {
+			rows = append(rows, []string{"server_state", string(*resp.GetStatusResult.ServerState)})
+		}
+		if resp != nil && resp.Status != nil {
+			if resp.Status.StatusInfo != "" {
+				rows = append(rows, []string{"status_info", resp.Status.StatusInfo})
+			}
+			if resp.Status.VendorInfo != "" {
+				rows = append(rows, []string{"vendor_info", resp.Status.VendorInfo})
+			}
+			if resp.Status.ProductVersion != "" {
+				rows = append(rows, []string{"product_version", resp.Status.ProductVersion})
+			}
+		}
+		return output.WriteTable(a.out, []string{"Field", "Value"}, rows)
+	default:
+		return invalidSnapshotFormat(format)
 	}
-	return fmt.Errorf("invalid output format %q; expected text", format)
+}
+
+func (a *App) renderBrowse(format string, elements []*service.BrowseElement) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatJSON:
+		return output.WriteJSON(a.out, elements)
+	case output.FormatTable:
+		rows := make([][]string, 0, len(elements))
+		for _, el := range elements {
+			if el == nil {
+				continue
+			}
+			rows = append(rows, []string{browseElementName(el), el.ItemPath, el.ItemName, fmt.Sprint(el.IsItem), fmt.Sprint(el.HasChildren)})
+		}
+		return output.WriteTable(a.out, []string{"Name", "ItemPath", "ItemName", "IsItem", "HasChildren"}, rows)
+	default:
+		return invalidSnapshotFormat(format)
+	}
+}
+
+func (a *App) renderRead(format string, resp *service.ReadResponse) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText:
+		return PrintRead(a.out, resp)
+	case output.FormatJSON:
+		return output.WriteJSON(a.out, resp)
+	case output.FormatTable:
+		rows := [][]string{}
+		if resp != nil && resp.RItemList != nil {
+			for _, item := range resp.RItemList.Items {
+				if item == nil {
+					continue
+				}
+				rows = append(rows, []string{
+					item.ItemPath,
+					item.ItemName,
+					formatOPCQuality(item.Quality),
+					formatXsdDateTime(item.Timestamp),
+					item.DiagnosticInfo,
+				})
+			}
+		}
+		return output.WriteTable(a.out, []string{"ItemPath", "ItemName", "Quality", "Timestamp", "DiagnosticInfo"}, rows)
+	default:
+		return invalidSnapshotFormat(format)
+	}
+}
+
+func validateSnapshotFormat(format string) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText, output.FormatTable, output.FormatJSON:
+		return nil
+	default:
+		return invalidSnapshotFormat(format)
+	}
+}
+
+func invalidSnapshotFormat(format string) error {
+	return fmt.Errorf("invalid output format %q; expected table, text, or json", format)
 }
 
 func shouldLoadConfig(path string, visited map[string]bool) bool {
@@ -645,7 +733,7 @@ Common flags:
   --endpoint          OPC XML-DA endpoint URL
   --config            YAML config file, defaults to config.yaml
   --profile           Config profile name
-  --format            Output format, currently text
+  --format            Output format: table, text, json, or jsonl where supported
   --locale            Locale ID
   --client-handle     Client request handle
   --http-timeout      HTTP dial timeout
