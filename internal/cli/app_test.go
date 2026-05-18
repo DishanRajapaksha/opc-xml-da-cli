@@ -81,14 +81,25 @@ func TestRunLegacyFlagsWarns(t *testing.T) {
 	}
 }
 
-func TestRunPlaceholderCommand(t *testing.T) {
+func TestCompletionsRequiresShell(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"completions"})
 	if code != exitGeneralError {
 		t.Fatalf("Run(completions) = %d, want %d", code, exitGeneralError)
 	}
-	if !strings.Contains(err.String(), "completions is not implemented yet") {
-		t.Fatalf("stderr missing placeholder error: %q", err.String())
+	if !strings.Contains(err.String(), "usage: opc-xml-da-cli completions bash|zsh") {
+		t.Fatalf("stderr missing completions usage: %q", err.String())
+	}
+}
+
+func TestCompletionsBash(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"completions", "bash"})
+	if code != exitSuccess {
+		t.Fatalf("Run(completions bash) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(out.String(), "complete -F _opc_xml_da_cli opc-xml-da-cli") {
+		t.Fatalf("bash completion missing function registration")
 	}
 }
 

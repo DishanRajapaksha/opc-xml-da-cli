@@ -106,7 +106,7 @@ func (a *App) Run(args []string) int {
 	case "init-config":
 		err = a.initConfig(args[1:])
 	case "completions":
-		err = errNotImplemented("completions")
+		err = a.completions(args[1:])
 	default:
 		if strings.HasPrefix(args[0], "-") {
 			err = a.runLegacy(args)
@@ -126,6 +126,13 @@ func (a *App) Run(args []string) int {
 
 func errNotImplemented(command string) error {
 	return fmt.Errorf("%s is not implemented yet", command)
+}
+
+func (a *App) completions(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: opc-xml-da-cli completions bash|zsh")
+	}
+	return writeCompletion(a.out, args[0])
 }
 
 func (a *App) initConfig(args []string) error {
@@ -766,7 +773,7 @@ Commands:
   test-connection  Run connection diagnostics
   validate-config  Validate local config
   init-config      Write starter config
-  completions      Generate shell completions (not implemented yet)
+  completions      Generate shell completions
   version          Print version information
 
 Common flags:
