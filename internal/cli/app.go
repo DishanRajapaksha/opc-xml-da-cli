@@ -264,7 +264,7 @@ func (a *App) watch(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateSnapshotFormat(opts.Format); err != nil {
+	if err := validateWatchFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -420,7 +420,7 @@ func (a *App) runWatch(opts commandOptions, interval, duration time.Duration) er
 			if err != nil {
 				return fmt.Errorf("watch: %w", err)
 			}
-			if err := PrintRead(a.out, resp); err != nil {
+			if err := a.renderWatch(opts.Format, item, resp); err != nil {
 				return fmt.Errorf("print watch: %w", err)
 			}
 		}
@@ -646,6 +646,21 @@ func (a *App) renderRead(format string, resp *service.ReadResponse) error {
 	}
 }
 
+func (a *App) renderWatch(format string, item itemRef, resp *service.ReadResponse) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText:
+		return PrintRead(a.out, resp)
+	case output.FormatJSONL:
+		return output.WriteJSONLine(a.out, map[string]interface{}{
+			"item_path": item.ItemPath,
+			"item_name": item.ItemName,
+			"response":  resp,
+		})
+	default:
+		return invalidWatchFormat(format)
+	}
+}
+
 func validateSnapshotFormat(format string) error {
 	switch output.NormaliseFormat(format) {
 	case output.FormatText, output.FormatTable, output.FormatJSON:
@@ -657,6 +672,19 @@ func validateSnapshotFormat(format string) error {
 
 func invalidSnapshotFormat(format string) error {
 	return fmt.Errorf("invalid output format %q; expected table, text, or json", format)
+}
+
+func validateWatchFormat(format string) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText, output.FormatJSONL:
+		return nil
+	default:
+		return invalidWatchFormat(format)
+	}
+}
+
+func invalidWatchFormat(format string) error {
+	return fmt.Errorf("invalid output format %q; expected text or jsonl", format)
 }
 
 func shouldLoadConfig(path string, visited map[string]bool) bool {
