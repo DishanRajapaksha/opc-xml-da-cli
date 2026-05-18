@@ -23,7 +23,7 @@ const (
 	defaultBrowseDepth    = 1
 	defaultHTTPTimeout    = 30 * time.Second
 	defaultRequestTimeout = 90 * time.Second
-	defaultLogLevel       = "info"
+	defaultLogLevel       = "warn"
 	exitSuccess           = 0
 	exitGeneralError      = 1
 )
@@ -44,8 +44,10 @@ type commandOptions struct {
 	ReadPath       string
 	ReadItemPath   string
 	ReadItems      []itemRef
-	NetDebug       bool
+	DumpHTTP       bool
 	LogLevel       string
+	Verbose        bool
+	Debug          bool
 	Locale         string
 	ClientHandle   string
 	HTTPTimeout    time.Duration
@@ -488,7 +490,7 @@ func readItemsFile(path string) ([]itemRef, error) {
 }
 
 func (a *App) newService(opts commandOptions) (context.Context, service.OpcXmlDASoap, error) {
-	if err := configureLogging(opts.LogLevel, opts.NetDebug); err != nil {
+	if err := configureLogging(opts); err != nil {
 		return nil, nil, err
 	}
 	if opts.Endpoint == "" {
@@ -496,7 +498,7 @@ func (a *App) newService(opts commandOptions) (context.Context, service.OpcXmlDA
 	}
 
 	var soapOpts []soap.Option
-	if opts.NetDebug {
+	if opts.DumpHTTP {
 		soapOpts = append(soapOpts, soap.WithHTTPClient(NewDebugHTTPClient(opts.HTTPTimeout, opts.RequestTimeout)))
 	} else {
 		soapOpts = append(soapOpts, soap.WithTimeout(opts.HTTPTimeout), soap.WithRequestTimeout(opts.RequestTimeout))
@@ -529,8 +531,11 @@ func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
 	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
 	fs.StringVar(&opts.Format, "format", opts.Format, "output format: table, text, json, or jsonl where supported")
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
-	fs.BoolVar(&opts.NetDebug, "net-debug", opts.NetDebug, "enable HTTP request/response debug logging")
-	fs.StringVar(&opts.LogLevel, "log-level", opts.LogLevel, "log level: debug, info, warn, error")
+	fs.BoolVar(&opts.Verbose, "verbose", opts.Verbose, "print high-level connection decisions")
+	fs.BoolVar(&opts.Debug, "debug", opts.Debug, "enable lower-level client debug logging")
+	fs.BoolVar(&opts.DumpHTTP, "dump-http", opts.DumpHTTP, "dump HTTP request/response details to stderr")
+	fs.BoolVar(&opts.DumpHTTP, "net-debug", opts.DumpHTTP, "deprecated alias for --dump-http")
+	fs.StringVar(&opts.LogLevel, "log-level", opts.LogLevel, "deprecated log level override: debug, info, warn, error")
 	fs.StringVar(&opts.Locale, "locale", opts.Locale, "locale ID")
 	fs.StringVar(&opts.ClientHandle, "client-handle", opts.ClientHandle, "client request handle")
 	fs.DurationVar(&opts.HTTPTimeout, "http-timeout", opts.HTTPTimeout, "HTTP dial timeout")
@@ -705,13 +710,19 @@ func visitedFlags(fs *flag.FlagSet) map[string]bool {
 	return visited
 }
 
-func configureLogging(logLevel string, netDebug bool) error {
+func configureLogging(opts commandOptions) error {
+	logLevel := opts.LogLevel
+	if opts.Debug {
+		logLevel = "debug"
+	} else if opts.Verbose {
+		logLevel = "info"
+	}
 	level, err := parseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
-	if netDebug {
+	if opts.DumpHTTP {
 		slog.Info("network debug enabled", "max_body_bytes", MaxDebugBodyBytes)
 	}
 	return nil
@@ -768,8 +779,9 @@ Common flags:
   --request-timeout   End-to-end request timeout
   --username          Basic auth username
   --password          Basic auth password
-  --log-level         debug, info, warn, or error
-  --net-debug         Enable HTTP request/response debug logging
+  --verbose           Print high-level connection decisions
+  --debug             Enable lower-level client debug logging
+  --dump-http         Dump HTTP request/response details to stderr
 
 Legacy top-level flags such as -endpoint, -browse-path, and -read-path are still accepted.`)
 }
