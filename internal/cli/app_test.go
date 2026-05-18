@@ -69,12 +69,23 @@ func TestRunLegacyFlagsWarns(t *testing.T) {
 
 func TestRunPlaceholderCommand(t *testing.T) {
 	var out, err bytes.Buffer
-	code := NewApp(&out, &err).Run([]string{"watch"})
+	code := NewApp(&out, &err).Run([]string{"completions"})
 	if code != exitGeneralError {
-		t.Fatalf("Run(watch) = %d, want %d", code, exitGeneralError)
+		t.Fatalf("Run(completions) = %d, want %d", code, exitGeneralError)
 	}
-	if !strings.Contains(err.String(), "watch is not implemented yet") {
+	if !strings.Contains(err.String(), "completions is not implemented yet") {
 		t.Fatalf("stderr missing placeholder error: %q", err.String())
+	}
+}
+
+func TestWatchRejectsInvalidInterval(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"watch", "--item-name", "A", "--interval", "0s"})
+	if code != exitGeneralError {
+		t.Fatalf("Run(watch --interval 0s) = %d, want %d", code, exitGeneralError)
+	}
+	if !strings.Contains(err.String(), "--interval must be greater than zero") {
+		t.Fatalf("stderr missing interval error: %q", err.String())
 	}
 }
 

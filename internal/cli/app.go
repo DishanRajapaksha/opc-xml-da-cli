@@ -93,7 +93,7 @@ func (a *App) Run(args []string) int {
 	case "read":
 		err = a.read(args[1:])
 	case "watch":
-		err = errNotImplemented("watch")
+		err = a.watch(args[1:])
 	case "test-connection":
 		err = a.testConnection(args[1:])
 	case "validate-config":
@@ -227,6 +227,42 @@ func (a *App) read(args []string) error {
 	return a.runRead(opts)
 }
 
+func (a *App) watch(args []string) error {
+	opts := defaultCommandOptions()
+	var itemNames stringList
+	var itemPaths stringList
+	itemsFile := ""
+	interval := time.Second
+	duration := time.Duration(0)
+	fs := a.newFlagSet("watch")
+	addCommonFlags(fs, &opts)
+	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
+	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
+	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
+	fs.DurationVar(&interval, "interval", interval, "poll interval")
+	fs.DurationVar(&duration, "duration", duration, "stop after this duration; zero runs until interrupted")
+	fs.StringVar(&opts.ReadPath, "read-path", "", "deprecated alias for --item-name")
+	fs.StringVar(&opts.ReadItemPath, "read-item-path", "", "deprecated alias for --item-path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if interval <= 0 {
+		return fmt.Errorf("--interval must be greater than zero")
+	}
+	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
+	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
+	if err != nil {
+		return err
+	}
+	if opts.ReadPath != "" || opts.ReadItemPath != "" {
+		items = append(items, itemRef{ItemPath: opts.ReadItemPath, ItemName: opts.ReadPath})
+	}
+	opts.ReadItems = items
+	return a.runWatch(opts, interval, duration)
+}
+
 func (a *App) testConnection(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("test-connection")
@@ -338,6 +374,40 @@ func (a *App) runRead(opts commandOptions) error {
 		}
 	}
 	return nil
+}
+
+func (a *App) runWatch(opts commandOptions, interval, duration time.Duration) error {
+	if len(opts.ReadItems) == 0 {
+		return fmt.Errorf("at least one --item-name or --item-path is required")
+	}
+	ctx, opcService, err := a.newService(opts)
+	if err != nil {
+		return err
+	}
+	runCtx := ctx
+	var cancel context.CancelFunc
+	if duration > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, duration)
+		defer cancel()
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		for _, item := range opts.ReadItems {
+			resp, err := FetchNodeValue(runCtx, opcService, opts.Locale, opts.ClientHandle, item.ItemPath, item.ItemName)
+			if err != nil {
+				return fmt.Errorf("watch: %w", err)
+			}
+			if err := PrintRead(a.out, resp); err != nil {
+				return fmt.Errorf("print watch: %w", err)
+			}
+		}
+		select {
+		case <-runCtx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
 }
 
 type itemRef struct {
@@ -542,7 +612,7 @@ Commands:
   status           Fetch OPC XML-DA GetStatus
   browse           Browse OPC XML-DA items
   read             Read an OPC XML-DA item
-  watch            Poll item values (not implemented yet)
+  watch            Poll item values
   test-connection  Run connection diagnostics
   validate-config  Validate local config
   init-config      Write starter config
