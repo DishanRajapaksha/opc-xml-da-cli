@@ -539,7 +539,8 @@ func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
 	fs.StringVar(&opts.Locale, "locale", opts.Locale, "locale ID")
 	fs.StringVar(&opts.ClientHandle, "client-handle", opts.ClientHandle, "client request handle")
 	fs.DurationVar(&opts.HTTPTimeout, "http-timeout", opts.HTTPTimeout, "HTTP dial timeout")
-	fs.DurationVar(&opts.RequestTimeout, "request-timeout", opts.RequestTimeout, "end-to-end request timeout")
+	fs.DurationVar(&opts.RequestTimeout, "timeout", opts.RequestTimeout, "end-to-end request timeout")
+	fs.DurationVar(&opts.RequestTimeout, "request-timeout", opts.RequestTimeout, "deprecated alias for --timeout")
 	fs.StringVar(&opts.Username, "username", opts.Username, "Basic auth username")
 	fs.StringVar(&opts.Password, "password", opts.Password, "Basic auth password")
 }
@@ -571,7 +572,7 @@ func (opts *commandOptions) applyConfig(fs *flag.FlagSet) error {
 	if !visited["http-timeout"] {
 		opts.HTTPTimeout = fileCfg.HTTPTimeout
 	}
-	if !visited["request-timeout"] {
+	if !visited["timeout"] && !visited["request-timeout"] {
 		opts.RequestTimeout = fileCfg.RequestTimeout
 	}
 	return nil
@@ -776,7 +777,7 @@ Common flags:
   --locale            Locale ID
   --client-handle     Client request handle
   --http-timeout      HTTP dial timeout
-  --request-timeout   End-to-end request timeout
+  --timeout           End-to-end request timeout
   --username          Basic auth username
   --password          Basic auth password
   --verbose           Print high-level connection decisions
