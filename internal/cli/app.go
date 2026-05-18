@@ -153,6 +153,7 @@ func (a *App) read(args []string) error {
 }
 
 func (a *App) runLegacy(args []string) error {
+	fmt.Fprintln(a.err, "warning: top-level flags are deprecated; use status, browse, or read subcommands")
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet(appName)
 	addCommonFlags(fs, &opts)
