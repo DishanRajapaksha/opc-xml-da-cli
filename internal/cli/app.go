@@ -97,7 +97,7 @@ func (a *App) Run(args []string) int {
 	case "validate-config":
 		err = errNotImplemented("validate-config")
 	case "init-config":
-		err = errNotImplemented("init-config")
+		err = a.initConfig(args[1:])
 	case "completions":
 		err = errNotImplemented("completions")
 	default:
@@ -119,6 +119,29 @@ func (a *App) Run(args []string) int {
 
 func errNotImplemented(command string) error {
 	return fmt.Errorf("%s is not implemented yet", command)
+}
+
+func (a *App) initConfig(args []string) error {
+	outputPath := config.DefaultConfigPath
+	force := false
+	fs := a.newFlagSet("init-config")
+	fs.StringVar(&outputPath, "output", outputPath, "output YAML config file")
+	fs.BoolVar(&force, "force", false, "overwrite output file if it exists")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if !force {
+		if _, err := os.Stat(outputPath); err == nil {
+			return fmt.Errorf("refusing to overwrite existing file %q; use --force to overwrite", outputPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat %q: %w", outputPath, err)
+		}
+	}
+	if err := os.WriteFile(outputPath, config.StarterConfigYAML(), 0o600); err != nil {
+		return fmt.Errorf("write config %q: %w", outputPath, err)
+	}
+	fmt.Fprintf(a.out, "wrote starter config to %s\n", outputPath)
+	return nil
 }
 
 func (a *App) status(args []string) error {
@@ -390,7 +413,7 @@ Commands:
   watch            Poll item values (not implemented yet)
   test-connection  Run connection diagnostics (not implemented yet)
   validate-config  Validate local config (not implemented yet)
-  init-config      Write starter config (not implemented yet)
+  init-config      Write starter config
   completions      Generate shell completions (not implemented yet)
   version          Print version information
 

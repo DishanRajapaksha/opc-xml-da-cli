@@ -69,12 +69,65 @@ func TestRunLegacyFlagsWarns(t *testing.T) {
 
 func TestRunPlaceholderCommand(t *testing.T) {
 	var out, err bytes.Buffer
-	code := NewApp(&out, &err).Run([]string{"init-config"})
+	code := NewApp(&out, &err).Run([]string{"watch"})
 	if code != exitGeneralError {
-		t.Fatalf("Run(init-config) = %d, want %d", code, exitGeneralError)
+		t.Fatalf("Run(watch) = %d, want %d", code, exitGeneralError)
 	}
-	if !strings.Contains(err.String(), "init-config is not implemented yet") {
+	if !strings.Contains(err.String(), "watch is not implemented yet") {
 		t.Fatalf("stderr missing placeholder error: %q", err.String())
+	}
+}
+
+func TestInitConfigWritesStarterConfig(t *testing.T) {
+	var out, err bytes.Buffer
+	outputPath := filepath.Join(t.TempDir(), "site-a.yaml")
+	code := NewApp(&out, &err).Run([]string{"init-config", "--output", outputPath})
+	if code != exitSuccess {
+		t.Fatalf("Run(init-config) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	data, readErr := os.ReadFile(outputPath)
+	if readErr != nil {
+		t.Fatalf("read starter config: %v", readErr)
+	}
+	if !strings.Contains(string(data), "endpoint:") {
+		t.Fatalf("starter config missing endpoint:\n%s", string(data))
+	}
+	if !strings.Contains(out.String(), "wrote starter config") {
+		t.Fatalf("stdout missing success message: %q", out.String())
+	}
+}
+
+func TestInitConfigRefusesOverwriteWithoutForce(t *testing.T) {
+	var out, err bytes.Buffer
+	outputPath := filepath.Join(t.TempDir(), "site-a.yaml")
+	if writeErr := os.WriteFile(outputPath, []byte("existing"), 0o600); writeErr != nil {
+		t.Fatalf("write existing config: %v", writeErr)
+	}
+	code := NewApp(&out, &err).Run([]string{"init-config", "--output", outputPath})
+	if code != exitGeneralError {
+		t.Fatalf("Run(init-config existing) = %d, want %d", code, exitGeneralError)
+	}
+	if !strings.Contains(err.String(), "refusing to overwrite") {
+		t.Fatalf("stderr missing overwrite refusal: %q", err.String())
+	}
+}
+
+func TestInitConfigForceOverwrites(t *testing.T) {
+	var out, err bytes.Buffer
+	outputPath := filepath.Join(t.TempDir(), "site-a.yaml")
+	if writeErr := os.WriteFile(outputPath, []byte("existing"), 0o600); writeErr != nil {
+		t.Fatalf("write existing config: %v", writeErr)
+	}
+	code := NewApp(&out, &err).Run([]string{"init-config", "--output", outputPath, "--force"})
+	if code != exitSuccess {
+		t.Fatalf("Run(init-config --force) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	data, readErr := os.ReadFile(outputPath)
+	if readErr != nil {
+		t.Fatalf("read starter config: %v", readErr)
+	}
+	if string(data) == "existing" {
+		t.Fatal("starter config was not overwritten")
 	}
 }
 
