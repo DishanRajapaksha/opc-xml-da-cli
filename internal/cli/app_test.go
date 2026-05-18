@@ -2,11 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"opc-xml-da-cli/service"
 )
 
 func TestRunHelp(t *testing.T) {
@@ -263,6 +266,55 @@ func TestReadItemRefs(t *testing.T) {
 	}
 	if items[0].ItemName != "Name.A" || items[1].ItemPath != "Path.B" || items[2].ItemName != "File.Item" {
 		t.Fatalf("unexpected items: %+v", items)
+	}
+}
+
+func TestRenderStatusJSON(t *testing.T) {
+	var out, errOut bytes.Buffer
+	app := NewApp(&out, &errOut)
+	resp := &service.GetStatusResponse{Status: &service.ServerStatus{StatusInfo: "ok"}}
+	if err := app.renderStatus("json", resp); err != nil {
+		t.Fatalf("renderStatus returned error: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+}
+
+func TestRenderReadTable(t *testing.T) {
+	var out, errOut bytes.Buffer
+	app := NewApp(&out, &errOut)
+	resp := &service.ReadResponse{
+		RItemList: &service.ReplyItemList{
+			Items: []*service.ItemValue{{ItemName: "A", DiagnosticInfo: "ok"}},
+		},
+	}
+	if err := app.renderRead("table", resp); err != nil {
+		t.Fatalf("renderRead returned error: %v", err)
+	}
+	if !strings.Contains(out.String(), "ItemName") || !strings.Contains(out.String(), "A") {
+		t.Fatalf("table output missing fields: %q", out.String())
+	}
+}
+
+func TestRenderWatchJSONL(t *testing.T) {
+	var out, errOut bytes.Buffer
+	app := NewApp(&out, &errOut)
+	resp := &service.ReadResponse{
+		RItemList: &service.ReplyItemList{
+			Items: []*service.ItemValue{{ItemName: "A"}},
+		},
+	}
+	if err := app.renderWatch("jsonl", itemRef{ItemName: "A"}, resp); err != nil {
+		t.Fatalf("renderWatch returned error: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("invalid jsonl: %v", err)
+	}
+	if decoded["item_name"] != "A" {
+		t.Fatalf("decoded item_name = %v", decoded["item_name"])
 	}
 }
 
