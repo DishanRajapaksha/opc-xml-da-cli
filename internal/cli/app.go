@@ -12,6 +12,7 @@ import (
 
 	"github.com/hooklift/gowsdl/soap"
 
+	"opc-xml-da-cli/internal/config"
 	"opc-xml-da-cli/service"
 )
 
@@ -31,6 +32,8 @@ type App struct {
 }
 
 type commandOptions struct {
+	ConfigPath     string
+	Profile        string
 	Endpoint       string
 	BrowsePath     string
 	BrowseItemPath string
@@ -49,6 +52,7 @@ type commandOptions struct {
 
 func defaultCommandOptions() commandOptions {
 	return commandOptions{
+		ConfigPath:     config.DefaultConfigPath,
 		BrowseDepth:    defaultBrowseDepth,
 		LogLevel:       defaultLogLevel,
 		HTTPTimeout:    defaultHTTPTimeout,
@@ -124,6 +128,9 @@ func (a *App) status(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
 	return a.runStatus(opts)
 }
 
@@ -137,6 +144,9 @@ func (a *App) browse(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
 	return a.runBrowse(opts)
 }
 
@@ -147,6 +157,9 @@ func (a *App) read(args []string) error {
 	fs.StringVar(&opts.ReadPath, "read-path", "", "OPC read item name (maps to ItemName)")
 	fs.StringVar(&opts.ReadItemPath, "read-item-path", "", "OPC read item path (maps to ItemPath)")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
 	return a.runRead(opts)
@@ -163,6 +176,9 @@ func (a *App) runLegacy(args []string) error {
 	fs.StringVar(&opts.ReadPath, "read-path", "", "OPC read item name (maps to ItemName)")
 	fs.StringVar(&opts.ReadItemPath, "read-item-path", "", "OPC read item path (maps to ItemPath)")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
 
@@ -262,6 +278,8 @@ func (a *App) newFlagSet(name string) *flag.FlagSet {
 }
 
 func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
+	fs.StringVar(&opts.ConfigPath, "config", opts.ConfigPath, "YAML config file")
+	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
 	fs.BoolVar(&opts.NetDebug, "net-debug", opts.NetDebug, "enable HTTP request/response debug logging")
 	fs.StringVar(&opts.LogLevel, "log-level", opts.LogLevel, "log level: debug, info, warn, error")
@@ -271,6 +289,57 @@ func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
 	fs.DurationVar(&opts.RequestTimeout, "request-timeout", opts.RequestTimeout, "end-to-end request timeout")
 	fs.StringVar(&opts.Username, "username", opts.Username, "Basic auth username")
 	fs.StringVar(&opts.Password, "password", opts.Password, "Basic auth password")
+}
+
+func (opts *commandOptions) applyConfig(fs *flag.FlagSet) error {
+	visited := visitedFlags(fs)
+	if !shouldLoadConfig(opts.ConfigPath, visited) {
+		return nil
+	}
+	fileCfg, err := config.LoadClientConfigForProfile(opts.ConfigPath, opts.Profile)
+	if err != nil {
+		return err
+	}
+	if !visited["endpoint"] {
+		opts.Endpoint = fileCfg.Endpoint
+	}
+	if !visited["username"] {
+		opts.Username = fileCfg.Username
+	}
+	if !visited["password"] {
+		opts.Password = fileCfg.Password
+	}
+	if !visited["locale"] {
+		opts.Locale = fileCfg.Locale
+	}
+	if !visited["client-handle"] {
+		opts.ClientHandle = fileCfg.ClientHandle
+	}
+	if !visited["http-timeout"] {
+		opts.HTTPTimeout = fileCfg.HTTPTimeout
+	}
+	if !visited["request-timeout"] {
+		opts.RequestTimeout = fileCfg.RequestTimeout
+	}
+	return nil
+}
+
+func shouldLoadConfig(path string, visited map[string]bool) bool {
+	if visited["config"] || visited["profile"] {
+		return true
+	}
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return false
+}
+
+func visitedFlags(fs *flag.FlagSet) map[string]bool {
+	visited := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) {
+		visited[f.Name] = true
+	})
+	return visited
 }
 
 func configureLogging(logLevel string, netDebug bool) error {
@@ -327,6 +396,8 @@ Commands:
 
 Common flags:
   --endpoint          OPC XML-DA endpoint URL
+  --config            YAML config file, defaults to config.yaml
+  --profile           Config profile name
   --locale            Locale ID
   --client-handle     Client request handle
   --http-timeout      HTTP dial timeout

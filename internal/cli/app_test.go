@@ -2,8 +2,11 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunHelp(t *testing.T) {
@@ -73,4 +76,81 @@ func TestRunPlaceholderCommand(t *testing.T) {
 	if !strings.Contains(err.String(), "init-config is not implemented yet") {
 		t.Fatalf("stderr missing placeholder error: %q", err.String())
 	}
+}
+
+func TestCommandOptionsApplyConfig(t *testing.T) {
+	path := writeCLIConfig(t, `
+endpoint: http://from-config/opc
+username: user
+password: secret
+locale: en-US
+client_handle: cli
+http_timeout: 2s
+request_timeout: 3s
+`)
+	var errOut bytes.Buffer
+	opts := defaultCommandOptions()
+	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
+	addCommonFlags(fs, &opts)
+	if err := fs.Parse([]string{"--config", path}); err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if err := opts.applyConfig(fs); err != nil {
+		t.Fatalf("applyConfig returned error: %v", err)
+	}
+	if opts.Endpoint != "http://from-config/opc" {
+		t.Fatalf("Endpoint = %q", opts.Endpoint)
+	}
+	if opts.Username != "user" || opts.Password != "secret" || opts.Locale != "en-US" || opts.ClientHandle != "cli" {
+		t.Fatalf("config fields not applied: %+v", opts)
+	}
+	if opts.HTTPTimeout != 2*time.Second || opts.RequestTimeout != 3*time.Second {
+		t.Fatalf("timeouts not applied: http=%s request=%s", opts.HTTPTimeout, opts.RequestTimeout)
+	}
+}
+
+func TestCommandOptionsApplyConfigKeepsCLIOverrides(t *testing.T) {
+	path := writeCLIConfig(t, `
+endpoint: http://from-config/opc
+http_timeout: 2s
+`)
+	var errOut bytes.Buffer
+	opts := defaultCommandOptions()
+	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
+	addCommonFlags(fs, &opts)
+	if err := fs.Parse([]string{"--config", path, "--endpoint", "http://override/opc"}); err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if err := opts.applyConfig(fs); err != nil {
+		t.Fatalf("applyConfig returned error: %v", err)
+	}
+	if opts.Endpoint != "http://override/opc" {
+		t.Fatalf("Endpoint = %q", opts.Endpoint)
+	}
+	if opts.HTTPTimeout != 2*time.Second {
+		t.Fatalf("HTTPTimeout = %s", opts.HTTPTimeout)
+	}
+}
+
+func TestCommandOptionsApplyConfigIgnoresMissingDefaultConfig(t *testing.T) {
+	var errOut bytes.Buffer
+	opts := defaultCommandOptions()
+	opts.ConfigPath = filepath.Join(t.TempDir(), "missing.yaml")
+	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
+	addCommonFlags(fs, &opts)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if err := opts.applyConfig(fs); err != nil {
+		t.Fatalf("applyConfig returned error: %v", err)
+	}
+}
+
+func writeCLIConfig(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return path
 }
