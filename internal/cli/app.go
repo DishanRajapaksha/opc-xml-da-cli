@@ -86,6 +86,16 @@ func (a *App) Run(args []string) int {
 		err = a.browse(args[1:])
 	case "read":
 		err = a.read(args[1:])
+	case "watch":
+		err = errNotImplemented("watch")
+	case "test-connection":
+		err = errNotImplemented("test-connection")
+	case "validate-config":
+		err = errNotImplemented("validate-config")
+	case "init-config":
+		err = errNotImplemented("init-config")
+	case "completions":
+		err = errNotImplemented("completions")
 	default:
 		if strings.HasPrefix(args[0], "-") {
 			err = a.runLegacy(args)
@@ -101,6 +111,10 @@ func (a *App) Run(args []string) int {
 		return exitGeneralError
 	}
 	return exitSuccess
+}
+
+func errNotImplemented(command string) error {
+	return fmt.Errorf("%s is not implemented yet", command)
 }
 
 func (a *App) status(args []string) error {
@@ -292,13 +306,23 @@ Usage:
   opc-xml-da-cli status --endpoint URL
   opc-xml-da-cli browse --endpoint URL --browse-path PATH --browse-depth 1
   opc-xml-da-cli read --endpoint URL --read-path PATH
+  opc-xml-da-cli watch --endpoint URL --read-path PATH --interval 1s
+  opc-xml-da-cli test-connection --endpoint URL
+  opc-xml-da-cli validate-config --config config.yaml
+  opc-xml-da-cli init-config
+  opc-xml-da-cli completions zsh
   opc-xml-da-cli version
 
 Commands:
-  status    Fetch OPC XML-DA GetStatus
-  browse    Browse OPC XML-DA items
-  read      Read an OPC XML-DA item
-  version   Print version information
+  status           Fetch OPC XML-DA GetStatus
+  browse           Browse OPC XML-DA items
+  read             Read an OPC XML-DA item
+  watch            Poll item values (not implemented yet)
+  test-connection  Run connection diagnostics (not implemented yet)
+  validate-config  Validate local config (not implemented yet)
+  init-config      Write starter config (not implemented yet)
+  completions      Generate shell completions (not implemented yet)
+  version          Print version information
 
 Common flags:
   --endpoint          OPC XML-DA endpoint URL
