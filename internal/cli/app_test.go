@@ -131,6 +131,30 @@ func TestInitConfigForceOverwrites(t *testing.T) {
 	}
 }
 
+func TestValidateConfigPasses(t *testing.T) {
+	var out, err bytes.Buffer
+	path := writeCLIConfig(t, `endpoint: http://localhost/opc`)
+	code := NewApp(&out, &err).Run([]string{"validate-config", "--config", path})
+	if code != exitSuccess {
+		t.Fatalf("Run(validate-config) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(out.String(), "config validation: PASS") {
+		t.Fatalf("stdout missing validation pass: %q", out.String())
+	}
+}
+
+func TestValidateConfigFailsForInvalidConfig(t *testing.T) {
+	var out, err bytes.Buffer
+	path := writeCLIConfig(t, `locale: en-US`)
+	code := NewApp(&out, &err).Run([]string{"validate-config", "--config", path})
+	if code != exitGeneralError {
+		t.Fatalf("Run(validate-config invalid) = %d, want %d", code, exitGeneralError)
+	}
+	if !strings.Contains(err.String(), "endpoint is required") {
+		t.Fatalf("stderr missing validation error: %q", err.String())
+	}
+}
+
 func TestCommandOptionsApplyConfig(t *testing.T) {
 	path := writeCLIConfig(t, `
 endpoint: http://from-config/opc

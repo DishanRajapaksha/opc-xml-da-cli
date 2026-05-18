@@ -95,7 +95,7 @@ func (a *App) Run(args []string) int {
 	case "test-connection":
 		err = errNotImplemented("test-connection")
 	case "validate-config":
-		err = errNotImplemented("validate-config")
+		err = a.validateConfig(args[1:])
 	case "init-config":
 		err = a.initConfig(args[1:])
 	case "completions":
@@ -141,6 +141,26 @@ func (a *App) initConfig(args []string) error {
 		return fmt.Errorf("write config %q: %w", outputPath, err)
 	}
 	fmt.Fprintf(a.out, "wrote starter config to %s\n", outputPath)
+	return nil
+}
+
+func (a *App) validateConfig(args []string) error {
+	configPath := config.DefaultConfigPath
+	profile := ""
+	fs := a.newFlagSet("validate-config")
+	fs.StringVar(&configPath, "config", configPath, "YAML config file")
+	fs.StringVar(&profile, "profile", profile, "config profile name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.LoadClientConfigForProfile(configPath, profile)
+	if err != nil {
+		return err
+	}
+	if err := config.ValidateClientConfig(cfg); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out, "config validation: PASS")
 	return nil
 }
 
@@ -412,7 +432,7 @@ Commands:
   read             Read an OPC XML-DA item
   watch            Poll item values (not implemented yet)
   test-connection  Run connection diagnostics (not implemented yet)
-  validate-config  Validate local config (not implemented yet)
+  validate-config  Validate local config
   init-config      Write starter config
   completions      Generate shell completions (not implemented yet)
   version          Print version information
