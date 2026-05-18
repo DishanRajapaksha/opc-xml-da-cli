@@ -758,7 +758,7 @@ Usage:
   opc-xml-da-cli status --endpoint URL
   opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
   opc-xml-da-cli read --endpoint URL --item-name PATH
-  opc-xml-da-cli watch --endpoint URL --read-path PATH --interval 1s
+  opc-xml-da-cli watch --endpoint URL --item-name PATH --interval 1s
   opc-xml-da-cli test-connection --endpoint URL
   opc-xml-da-cli validate-config --config config.yaml
   opc-xml-da-cli init-config
