@@ -1,0 +1,23 @@
+# OPC XML-DA endpoint defaults.
+endpoint: http://localhost/OPC/DA
+http_timeout: 30s
+request_timeout: 90s
+
+# Optional request metadata.
+locale: en-US
+client_handle: opc-xml-da-cli
+
+# Optional Basic authentication.
+# username: user
+# password: secret
+
+default_profile: local
+profiles:
+  local:
+    endpoint: http://localhost/OPC/DA
+  site-a:
+    endpoint: http://192.168.1.50/OPC/DA
+    http_timeout: 10s
+    request_timeout: 60s
+    # username: site-user
+    # password: site-secret
