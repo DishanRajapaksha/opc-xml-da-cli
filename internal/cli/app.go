@@ -181,9 +181,12 @@ func (a *App) browse(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("browse")
 	addCommonFlags(fs, &opts)
-	fs.StringVar(&opts.BrowsePath, "browse-path", "", "OPC browse path (maps to ItemName)")
-	fs.StringVar(&opts.BrowseItemPath, "browse-item-path", "", "OPC browse item path (maps to ItemPath)")
-	fs.IntVar(&opts.BrowseDepth, "browse-depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
+	fs.StringVar(&opts.BrowsePath, "item-name", "", "OPC browse item name")
+	fs.StringVar(&opts.BrowseItemPath, "item-path", "", "OPC browse item path")
+	fs.IntVar(&opts.BrowseDepth, "depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
+	fs.StringVar(&opts.BrowsePath, "browse-path", "", "deprecated alias for --item-name")
+	fs.StringVar(&opts.BrowseItemPath, "browse-item-path", "", "deprecated alias for --item-path")
+	fs.IntVar(&opts.BrowseDepth, "browse-depth", opts.BrowseDepth, "deprecated alias for --depth")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -447,7 +450,7 @@ func (a *App) printUsage() {
 
 Usage:
   opc-xml-da-cli status --endpoint URL
-  opc-xml-da-cli browse --endpoint URL --browse-path PATH --browse-depth 1
+  opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
   opc-xml-da-cli read --endpoint URL --read-path PATH
   opc-xml-da-cli watch --endpoint URL --read-path PATH --interval 1s
   opc-xml-da-cli test-connection --endpoint URL
