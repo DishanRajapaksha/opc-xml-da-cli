@@ -223,6 +223,27 @@ func TestCommandOptionsApplyConfigIgnoresMissingDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestReadItemRefs(t *testing.T) {
+	itemsPath := filepath.Join(t.TempDir(), "items.txt")
+	if err := os.WriteFile(itemsPath, []byte("# comment\nFile.Item\n\n"), 0o600); err != nil {
+		t.Fatalf("write items file: %v", err)
+	}
+	items, err := readItemRefs(
+		stringList{"Name.A"},
+		stringList{"Path.B"},
+		itemsPath,
+	)
+	if err != nil {
+		t.Fatalf("readItemRefs returned error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("len(items) = %d, want 3: %+v", len(items), items)
+	}
+	if items[0].ItemName != "Name.A" || items[1].ItemPath != "Path.B" || items[2].ItemName != "File.Item" {
+		t.Fatalf("unexpected items: %+v", items)
+	}
+}
+
 func writeCLIConfig(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")

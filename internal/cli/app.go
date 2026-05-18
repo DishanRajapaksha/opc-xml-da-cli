@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -40,6 +41,7 @@ type commandOptions struct {
 	BrowseDepth    int
 	ReadPath       string
 	ReadItemPath   string
+	ReadItems      []itemRef
 	NetDebug       bool
 	LogLevel       string
 	Locale         string
@@ -198,16 +200,30 @@ func (a *App) browse(args []string) error {
 
 func (a *App) read(args []string) error {
 	opts := defaultCommandOptions()
+	var itemNames stringList
+	var itemPaths stringList
+	itemsFile := ""
 	fs := a.newFlagSet("read")
 	addCommonFlags(fs, &opts)
-	fs.StringVar(&opts.ReadPath, "read-path", "", "OPC read item name (maps to ItemName)")
-	fs.StringVar(&opts.ReadItemPath, "read-item-path", "", "OPC read item path (maps to ItemPath)")
+	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
+	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
+	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
+	fs.StringVar(&opts.ReadPath, "read-path", "", "deprecated alias for --item-name")
+	fs.StringVar(&opts.ReadItemPath, "read-item-path", "", "deprecated alias for --item-path")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
+	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
+	if err != nil {
+		return err
+	}
+	if opts.ReadPath != "" || opts.ReadItemPath != "" {
+		items = append(items, itemRef{ItemPath: opts.ReadItemPath, ItemName: opts.ReadPath})
+	}
+	opts.ReadItems = items
 	return a.runRead(opts)
 }
 
@@ -301,19 +317,82 @@ func (a *App) runBrowse(opts commandOptions) error {
 }
 
 func (a *App) runRead(opts commandOptions) error {
+	if len(opts.ReadItems) == 0 && (opts.ReadPath != "" || opts.ReadItemPath != "") {
+		opts.ReadItems = []itemRef{{ItemPath: opts.ReadItemPath, ItemName: opts.ReadPath}}
+	}
+	if len(opts.ReadItems) == 0 {
+		return fmt.Errorf("at least one --item-name or --item-path is required")
+	}
 	ctx, opcService, err := a.newService(opts)
 	if err != nil {
 		return err
 	}
-	slog.Info("read requested", "item_path", opts.ReadItemPath, "item_name", opts.ReadPath)
-	resp, err := FetchNodeValue(ctx, opcService, opts.Locale, opts.ClientHandle, opts.ReadItemPath, opts.ReadPath)
-	if err != nil {
-		return fmt.Errorf("read: %w", err)
-	}
-	if err := PrintRead(a.out, resp); err != nil {
-		return fmt.Errorf("print read: %w", err)
+	for _, item := range opts.ReadItems {
+		slog.Info("read requested", "item_path", item.ItemPath, "item_name", item.ItemName)
+		resp, err := FetchNodeValue(ctx, opcService, opts.Locale, opts.ClientHandle, item.ItemPath, item.ItemName)
+		if err != nil {
+			return fmt.Errorf("read: %w", err)
+		}
+		if err := PrintRead(a.out, resp); err != nil {
+			return fmt.Errorf("print read: %w", err)
+		}
 	}
 	return nil
+}
+
+type itemRef struct {
+	ItemPath string
+	ItemName string
+}
+
+type stringList []string
+
+func (s *stringList) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
+func readItemRefs(itemNames, itemPaths stringList, itemsFile string) ([]itemRef, error) {
+	items := make([]itemRef, 0, len(itemNames)+len(itemPaths))
+	for _, itemName := range itemNames {
+		items = append(items, itemRef{ItemName: itemName})
+	}
+	for _, itemPath := range itemPaths {
+		items = append(items, itemRef{ItemPath: itemPath})
+	}
+	if itemsFile == "" {
+		return items, nil
+	}
+	fromFile, err := readItemsFile(itemsFile)
+	if err != nil {
+		return nil, err
+	}
+	return append(items, fromFile...), nil
+}
+
+func readItemsFile(path string) ([]itemRef, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("read items file %q: %w", path, err)
+	}
+	defer f.Close()
+	var items []itemRef
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		items = append(items, itemRef{ItemName: line})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read items file %q: %w", path, err)
+	}
+	return items, nil
 }
 
 func (a *App) newService(opts commandOptions) (context.Context, service.OpcXmlDASoap, error) {
@@ -451,7 +530,7 @@ func (a *App) printUsage() {
 Usage:
   opc-xml-da-cli status --endpoint URL
   opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
-  opc-xml-da-cli read --endpoint URL --read-path PATH
+  opc-xml-da-cli read --endpoint URL --item-name PATH
   opc-xml-da-cli watch --endpoint URL --read-path PATH --interval 1s
   opc-xml-da-cli test-connection --endpoint URL
   opc-xml-da-cli validate-config --config config.yaml
