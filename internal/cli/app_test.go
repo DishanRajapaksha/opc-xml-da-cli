@@ -56,6 +56,17 @@ func TestRunMissingEndpoint(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnsupportedFormat(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"status", "--format", "json"})
+	if code != exitGeneralError {
+		t.Fatalf("Run(status --format json) = %d, want %d", code, exitGeneralError)
+	}
+	if !strings.Contains(err.String(), `invalid output format "json"`) {
+		t.Fatalf("stderr missing format error: %q", err.String())
+	}
+}
+
 func TestRunLegacyFlagsWarns(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"-endpoint", ""})

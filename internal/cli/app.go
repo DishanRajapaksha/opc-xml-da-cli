@@ -35,6 +35,7 @@ type App struct {
 type commandOptions struct {
 	ConfigPath     string
 	Profile        string
+	Format         string
 	Endpoint       string
 	BrowsePath     string
 	BrowseItemPath string
@@ -55,6 +56,7 @@ type commandOptions struct {
 func defaultCommandOptions() commandOptions {
 	return commandOptions{
 		ConfigPath:     config.DefaultConfigPath,
+		Format:         "text",
 		BrowseDepth:    defaultBrowseDepth,
 		LogLevel:       defaultLogLevel,
 		HTTPTimeout:    defaultHTTPTimeout,
@@ -176,6 +178,9 @@ func (a *App) status(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
+	if err := validateTextFormat(opts.Format); err != nil {
+		return err
+	}
 	return a.runStatus(opts)
 }
 
@@ -193,6 +198,9 @@ func (a *App) browse(args []string) error {
 		return err
 	}
 	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
+	if err := validateTextFormat(opts.Format); err != nil {
 		return err
 	}
 	return a.runBrowse(opts)
@@ -214,6 +222,9 @@ func (a *App) read(args []string) error {
 		return err
 	}
 	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
+	if err := validateTextFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -250,6 +261,9 @@ func (a *App) watch(args []string) error {
 		return fmt.Errorf("--interval must be greater than zero")
 	}
 	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
+	if err := validateTextFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -505,6 +519,7 @@ func (a *App) newFlagSet(name string) *flag.FlagSet {
 func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
 	fs.StringVar(&opts.ConfigPath, "config", opts.ConfigPath, "YAML config file")
 	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
+	fs.StringVar(&opts.Format, "format", opts.Format, "output format: text")
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
 	fs.BoolVar(&opts.NetDebug, "net-debug", opts.NetDebug, "enable HTTP request/response debug logging")
 	fs.StringVar(&opts.LogLevel, "log-level", opts.LogLevel, "log level: debug, info, warn, error")
@@ -547,6 +562,13 @@ func (opts *commandOptions) applyConfig(fs *flag.FlagSet) error {
 		opts.RequestTimeout = fileCfg.RequestTimeout
 	}
 	return nil
+}
+
+func validateTextFormat(format string) error {
+	if strings.EqualFold(format, "text") {
+		return nil
+	}
+	return fmt.Errorf("invalid output format %q; expected text", format)
 }
 
 func shouldLoadConfig(path string, visited map[string]bool) bool {
@@ -623,6 +645,7 @@ Common flags:
   --endpoint          OPC XML-DA endpoint URL
   --config            YAML config file, defaults to config.yaml
   --profile           Config profile name
+  --format            Output format, currently text
   --locale            Locale ID
   --client-handle     Client request handle
   --http-timeout      HTTP dial timeout
