@@ -93,7 +93,7 @@ func (a *App) Run(args []string) int {
 	case "watch":
 		err = errNotImplemented("watch")
 	case "test-connection":
-		err = errNotImplemented("test-connection")
+		err = a.testConnection(args[1:])
 	case "validate-config":
 		err = a.validateConfig(args[1:])
 	case "init-config":
@@ -206,6 +206,36 @@ func (a *App) read(args []string) error {
 		return err
 	}
 	return a.runRead(opts)
+}
+
+func (a *App) testConnection(args []string) error {
+	opts := defaultCommandOptions()
+	fs := a.newFlagSet("test-connection")
+	addCommonFlags(fs, &opts)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := opts.applyConfig(fs); err != nil {
+		return err
+	}
+	ctx, opcService, err := a.newService(opts)
+	if err != nil {
+		return err
+	}
+	resp, err := FetchServerStatus(ctx, opcService, opts.Locale, opts.ClientHandle)
+	if err != nil {
+		return fmt.Errorf("test connection: FAIL: %w", err)
+	}
+	state := ""
+	if resp != nil && resp.GetStatusResult != nil && resp.GetStatusResult.ServerState != nil {
+		state = string(*resp.GetStatusResult.ServerState)
+	}
+	if state == "" {
+		fmt.Fprintln(a.out, "test connection: PASS")
+		return nil
+	}
+	fmt.Fprintf(a.out, "test connection: PASS server_state=%s\n", state)
+	return nil
 }
 
 func (a *App) runLegacy(args []string) error {
@@ -431,7 +461,7 @@ Commands:
   browse           Browse OPC XML-DA items
   read             Read an OPC XML-DA item
   watch            Poll item values (not implemented yet)
-  test-connection  Run connection diagnostics (not implemented yet)
+  test-connection  Run connection diagnostics
   validate-config  Validate local config
   init-config      Write starter config
   completions      Generate shell completions (not implemented yet)
