@@ -27,6 +27,17 @@ func TestRunHelp(t *testing.T) {
 	}
 }
 
+func TestRunSubcommandHelpSucceeds(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"read", "--help"})
+	if code != exitSuccess {
+		t.Fatalf("Run(read --help) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(err.String(), "Usage of read:") {
+		t.Fatalf("stderr missing read usage: %q", err.String())
+	}
+}
+
 func TestRunUnknownCommand(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"nope"})

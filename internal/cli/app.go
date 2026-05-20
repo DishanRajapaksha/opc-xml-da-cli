@@ -130,6 +130,9 @@ func (a *App) Run(args []string) int {
 	}
 
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitSuccess
+		}
 		fmt.Fprintln(a.err, err)
 		return mapRunError(err)
 	}
