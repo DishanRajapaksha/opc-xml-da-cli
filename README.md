@@ -147,28 +147,6 @@ Snapshot commands support:
 - `text` (default)
 - `jsonl`
 
-## Exit Codes
-
-Stable exit codes for scripts:
-
-- `0`: success
-- `1`: general error
-- `2`: config error
-- `3`: connection error
-- `4`: XML-DA request error
-- `9`: output or formatting error
-
-## Shell Completions
-
-```bash
-# bash
-opc-xml-da-cli completions bash > /etc/bash_completion.d/opc-xml-da-cli
-
-# zsh
-mkdir -p "${HOME}/.zsh/completions"
-opc-xml-da-cli completions zsh > "${HOME}/.zsh/completions/_opc-xml-da-cli"
-```
-
 ## Troubleshooting and Diagnostics
 
 ```bash
@@ -188,6 +166,28 @@ Common flags:
 - `--endpoint`: OPC XML-DA endpoint URL.
 - `--timeout`: end-to-end request timeout.
 - `--http-timeout`: HTTP dial timeout.
+
+## Shell Completions
+
+```bash
+# bash
+opc-xml-da-cli completions bash > /etc/bash_completion.d/opc-xml-da-cli
+
+# zsh
+mkdir -p "${HOME}/.zsh/completions"
+opc-xml-da-cli completions zsh > "${HOME}/.zsh/completions/_opc-xml-da-cli"
+```
+
+## Exit Codes
+
+Stable exit codes for scripts:
+
+- `0`: success
+- `1`: general error
+- `2`: config error
+- `3`: connection error
+- `4`: XML-DA request error
+- `9`: output or formatting error
 
 ## Legacy Flags
 
