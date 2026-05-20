@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -79,6 +80,13 @@ func Main() {
 }
 
 func (a *App) Run(args []string) int {
+	normalisedArgs, normaliseErr := normaliseGlobalFlags(args)
+	if normaliseErr != nil {
+		fmt.Fprintln(a.err, normaliseErr)
+		return exitGeneralError
+	}
+	args = normalisedArgs
+
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		a.printUsage()
 		return exitSuccess
@@ -126,6 +134,118 @@ func (a *App) Run(args []string) int {
 
 func errNotImplemented(command string) error {
 	return fmt.Errorf("%s is not implemented yet", command)
+}
+
+func normaliseGlobalFlags(args []string) ([]string, error) {
+	if len(args) == 0 {
+		return args, nil
+	}
+
+	var globals []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			if i+1 >= len(args) {
+				return nil, errors.New("command is required after --")
+			}
+			return appendCommandGlobals(args[i+1:], globals), nil
+		}
+		if !strings.HasPrefix(arg, "--") {
+			if strings.HasPrefix(arg, "-") {
+				return args, nil
+			}
+			return appendCommandGlobals(args[i:], globals), nil
+		}
+		if arg == "--help" || arg == "--version" {
+			return args[i:], nil
+		}
+
+		name, inlineValue, hasInlineValue := strings.Cut(arg, "=")
+		switch name {
+		case "--verbose", "--debug", "--dump-http":
+			if hasInlineValue {
+				return nil, fmt.Errorf("%s does not take a value", name)
+			}
+			globals = append(globals, name)
+		case "--endpoint", "--config", "--profile", "--format", "--locale", "--client-handle", "--http-timeout", "--timeout", "--username", "--password":
+			value := inlineValue
+			if !hasInlineValue {
+				i++
+				if i >= len(args) || strings.HasPrefix(args[i], "-") {
+					return nil, fmt.Errorf("%s requires a value", name)
+				}
+				value = args[i]
+			}
+			if value == "" {
+				return nil, fmt.Errorf("%s requires a value", name)
+			}
+			globals = append(globals, name, value)
+		default:
+			return nil, fmt.Errorf("unknown global flag %q", name)
+		}
+	}
+
+	if len(globals) == 0 {
+		return args, nil
+	}
+	return nil, errors.New("command is required")
+}
+
+func appendCommandGlobals(args []string, globals []string) []string {
+	if len(args) == 0 || len(globals) == 0 {
+		return args
+	}
+	command := args[0]
+	filteredGlobals := filterGlobalsForCommand(command, globals)
+	if len(filteredGlobals) == 0 {
+		return args
+	}
+	out := make([]string, 0, len(args)+len(filteredGlobals))
+	out = append(out, command)
+	out = append(out, filteredGlobals...)
+	out = append(out, args[1:]...)
+	return out
+}
+
+func filterGlobalsForCommand(command string, globals []string) []string {
+	out := make([]string, 0, len(globals))
+	for i := 0; i < len(globals); i++ {
+		name := globals[i]
+		if !commandSupportsGlobalFlag(command, name) {
+			if globalFlagTakesValue(name) {
+				i++
+			}
+			continue
+		}
+		out = append(out, name)
+		if globalFlagTakesValue(name) {
+			i++
+			if i < len(globals) {
+				out = append(out, globals[i])
+			}
+		}
+	}
+	return out
+}
+
+func commandSupportsGlobalFlag(command string, name string) bool {
+	switch command {
+	case "validate-config":
+		return name == "--config" || name == "--profile"
+	case "status", "browse", "read", "watch", "test-connection":
+		return true
+	default:
+		return false
+	}
+}
+
+func globalFlagTakesValue(name string) bool {
+	switch name {
+	case "--verbose", "--debug", "--dump-http":
+		return false
+	default:
+		return true
+	}
 }
 
 func (a *App) completions(args []string) error {
@@ -755,6 +875,7 @@ func (a *App) printUsage() {
 	fmt.Fprintln(a.out, `opc-xml-da-cli is a small OPC XML-DA command-line client.
 
 Usage:
+  opc-xml-da-cli [global flags] <command> [flags]
   opc-xml-da-cli status --endpoint URL
   opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
   opc-xml-da-cli read --endpoint URL --item-name PATH

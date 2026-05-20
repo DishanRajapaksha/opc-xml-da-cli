@@ -179,6 +179,18 @@ func TestValidateConfigPasses(t *testing.T) {
 	}
 }
 
+func TestValidateConfigAcceptsGlobalConfigFlag(t *testing.T) {
+	var out, err bytes.Buffer
+	path := writeCLIConfig(t, `endpoint: http://localhost/opc`)
+	code := NewApp(&out, &err).Run([]string{"--config", path, "validate-config"})
+	if code != exitSuccess {
+		t.Fatalf("Run(global config validate-config) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(out.String(), "config validation: PASS") {
+		t.Fatalf("stdout missing validation pass: %q", out.String())
+	}
+}
+
 func TestValidateConfigFailsForInvalidConfig(t *testing.T) {
 	var out, err bytes.Buffer
 	path := writeCLIConfig(t, `locale: en-US`)
@@ -242,6 +254,28 @@ http_timeout: 2s
 	}
 	if opts.HTTPTimeout != 2*time.Second {
 		t.Fatalf("HTTPTimeout = %s", opts.HTTPTimeout)
+	}
+}
+
+func TestNormaliseGlobalFlagsPreservesCommandOverride(t *testing.T) {
+	got, err := normaliseGlobalFlags([]string{"--format", "json", "read", "--format", "table", "--item-name", "A"})
+	if err != nil {
+		t.Fatalf("normaliseGlobalFlags returned error: %v", err)
+	}
+	want := []string{"read", "--format", "json", "--format", "table", "--item-name", "A"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("normalised args = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormaliseGlobalFlagsKeepsLegacySingleDashFlags(t *testing.T) {
+	got, err := normaliseGlobalFlags([]string{"-endpoint", "http://localhost/opc"})
+	if err != nil {
+		t.Fatalf("normaliseGlobalFlags returned error: %v", err)
+	}
+	want := []string{"-endpoint", "http://localhost/opc"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("normalised args = %#v, want %#v", got, want)
 	}
 }
 
