@@ -115,6 +115,17 @@ func TestCompletionsHelpSucceeds(t *testing.T) {
 	}
 }
 
+func TestTestConnectionRejectsFormatFlag(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"test-connection", "--format", "json"})
+	if code != exitConfigError {
+		t.Fatalf("Run(test-connection --format json) = %d, want %d", code, exitConfigError)
+	}
+	if !strings.Contains(err.String(), "flag provided but not defined") {
+		t.Fatalf("stderr missing flag error: %q", err.String())
+	}
+}
+
 func TestCompletionsBash(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"completions", "bash"})
