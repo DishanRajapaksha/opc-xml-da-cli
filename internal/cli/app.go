@@ -354,7 +354,7 @@ func (a *App) read(args []string) error {
 	if err := opts.applyConfig(fs); err != nil {
 		return err
 	}
-	if err := validateSnapshotFormat(opts.Format); err != nil {
+	if err := validateReadFormat(opts.Format); err != nil {
 		return err
 	}
 	items, err := readItemRefs(itemNames, itemPaths, itemsFile)
@@ -758,6 +758,8 @@ func (a *App) renderRead(format string, resp *service.ReadResponse) error {
 		return PrintRead(a.out, resp)
 	case output.FormatJSON:
 		return output.WriteJSON(a.out, resp)
+	case output.FormatJSONL:
+		return output.WriteJSONLine(a.out, resp)
 	case output.FormatTable:
 		rows := [][]string{}
 		if resp != nil && resp.RItemList != nil {
@@ -819,6 +821,15 @@ func validateWatchFormat(format string) error {
 
 func invalidWatchFormat(format string) error {
 	return fmt.Errorf("invalid output format %q; expected text or jsonl", format)
+}
+
+func validateReadFormat(format string) error {
+	switch output.NormaliseFormat(format) {
+	case output.FormatText, output.FormatTable, output.FormatJSON, output.FormatJSONL:
+		return nil
+	default:
+		return fmt.Errorf("invalid output format %q; expected table, text, json, or jsonl", format)
+	}
 }
 
 func shouldLoadConfig(path string, visited map[string]bool) bool {

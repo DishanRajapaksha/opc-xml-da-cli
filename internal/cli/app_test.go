@@ -343,6 +343,23 @@ func TestRenderReadTable(t *testing.T) {
 	}
 }
 
+func TestRenderReadJSONL(t *testing.T) {
+	var out, errOut bytes.Buffer
+	app := NewApp(&out, &errOut)
+	resp := &service.ReadResponse{
+		RItemList: &service.ReplyItemList{
+			Items: []*service.ItemValue{{ItemName: "A"}},
+		},
+	}
+	if err := app.renderRead("jsonl", resp); err != nil {
+		t.Fatalf("renderRead returned error: %v", err)
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("invalid jsonl: %v", err)
+	}
+}
+
 func TestRenderWatchJSONL(t *testing.T) {
 	var out, errOut bytes.Buffer
 	app := NewApp(&out, &errOut)

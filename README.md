@@ -17,6 +17,7 @@ A script-friendly OPC XML Data Access command-line client written in Go.
 | Read items from file | `opc-xml-da-cli read --items items.txt` |
 | Watch by polling | `opc-xml-da-cli watch --item-name Plant.Area.Tag --interval 1s` |
 | JSON output | `opc-xml-da-cli read --item-name Plant.Area.Tag --format json` |
+| JSON Lines read | `opc-xml-da-cli read --items items.txt --format jsonl` |
 | JSON Lines watch | `opc-xml-da-cli watch --item-name Plant.Area.Tag --interval 1s --duration 10s --format jsonl` |
 
 ## Install
@@ -117,6 +118,7 @@ opc-xml-da-cli browse --item-path /Plant/Area --format json
 opc-xml-da-cli read --item-name Plant.Area.Tag
 opc-xml-da-cli read --item-name Tag.A --item-name Tag.B --format table
 opc-xml-da-cli read --items items.txt --format json
+opc-xml-da-cli read --items items.txt --format jsonl
 ```
 
 `items.txt` uses one item name per line. Blank lines and `#` comments are ignored.
@@ -137,6 +139,8 @@ Snapshot commands support:
 - `table` (default)
 - `text`
 - `json`
+
+`read` also supports `jsonl`, with one read response per line.
 
 `watch` supports:
 
