@@ -162,3 +162,7 @@ Common flags:
 - `--endpoint`: OPC XML-DA endpoint URL.
 - `--timeout`: end-to-end request timeout.
 - `--http-timeout`: HTTP dial timeout.
+
+## Legacy Flags
+
+Legacy top-level flags such as `-endpoint`, `-browse-path`, and `-read-path` are still accepted for compatibility. New scripts should use the named commands shown above.
