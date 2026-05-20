@@ -1001,7 +1001,7 @@ Common flags:
   --endpoint          OPC XML-DA endpoint URL
   --config            YAML config file, defaults to config.yaml
   --profile           Config profile name
-  --format            Output format: table, text, json, or jsonl where supported
+  --format            Output format; run <command> --help for supported formats
   --locale            Locale ID
   --client-handle     Client request handle
   --http-timeout      HTTP dial timeout
