@@ -498,19 +498,23 @@ func (a *App) testConnection(args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Fprintln(a.out, "Connection diagnostics")
+	fmt.Fprintf(a.out, "Endpoint: %s\n", opts.Endpoint)
 	resp, err := FetchServerStatus(ctx, opcService, opts.Locale, opts.ClientHandle)
 	if err != nil {
+		fmt.Fprintf(a.out, "OPC XML-DA GetStatus: FAIL (%v)\n", err)
+		fmt.Fprintln(a.out, "RESULT: FAIL")
 		return fmt.Errorf("test connection: FAIL: %w", err)
 	}
 	state := ""
 	if resp != nil && resp.GetStatusResult != nil && resp.GetStatusResult.ServerState != nil {
 		state = string(*resp.GetStatusResult.ServerState)
 	}
-	if state == "" {
-		fmt.Fprintln(a.out, "test connection: PASS")
-		return nil
+	if state != "" {
+		fmt.Fprintf(a.out, "Server state: %s\n", state)
 	}
-	fmt.Fprintf(a.out, "test connection: PASS server_state=%s\n", state)
+	fmt.Fprintln(a.out, "OPC XML-DA GetStatus: PASS")
+	fmt.Fprintln(a.out, "RESULT: PASS")
 	return nil
 }
 
