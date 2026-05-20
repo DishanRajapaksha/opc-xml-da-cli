@@ -134,8 +134,8 @@ opc-xml-da-cli watch --item-name Plant.Area.Tag --interval 1s --duration 30s --f
 
 Snapshot commands support:
 
-- `text` (default)
-- `table`
+- `table` (default)
+- `text`
 - `json`
 
 `watch` supports:

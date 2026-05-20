@@ -60,7 +60,7 @@ type commandOptions struct {
 func defaultCommandOptions() commandOptions {
 	return commandOptions{
 		ConfigPath:     config.DefaultConfigPath,
-		Format:         "text",
+		Format:         "table",
 		BrowseDepth:    defaultBrowseDepth,
 		LogLevel:       defaultLogLevel,
 		HTTPTimeout:    defaultHTTPTimeout,
@@ -370,6 +370,7 @@ func (a *App) read(args []string) error {
 
 func (a *App) watch(args []string) error {
 	opts := defaultCommandOptions()
+	opts.Format = "text"
 	var itemNames stringList
 	var itemPaths stringList
 	itemsFile := ""
