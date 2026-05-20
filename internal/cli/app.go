@@ -27,6 +27,10 @@ const (
 	defaultLogLevel       = "warn"
 	exitSuccess           = 0
 	exitGeneralError      = 1
+	exitConfigError       = 2
+	exitConnectionError   = 3
+	exitRequestError      = 4
+	exitOutputError       = 9
 )
 
 type App struct {
@@ -83,7 +87,7 @@ func (a *App) Run(args []string) int {
 	normalisedArgs, normaliseErr := normaliseGlobalFlags(args)
 	if normaliseErr != nil {
 		fmt.Fprintln(a.err, normaliseErr)
-		return exitGeneralError
+		return mapRunError(normaliseErr)
 	}
 	args = normalisedArgs
 
@@ -127,9 +131,81 @@ func (a *App) Run(args []string) int {
 
 	if err != nil {
 		fmt.Fprintln(a.err, err)
-		return exitGeneralError
+		return mapRunError(err)
 	}
 	return exitSuccess
+}
+
+func mapRunError(err error) int {
+	if err == nil {
+		return exitSuccess
+	}
+	if isConfigError(err) {
+		return exitConfigError
+	}
+	if isOutputError(err) {
+		return exitOutputError
+	}
+	if isRequestError(err) {
+		return exitRequestError
+	}
+	if isConnectionError(err) {
+		return exitConnectionError
+	}
+	return exitGeneralError
+}
+
+func isConfigError(err error) bool {
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	msg := err.Error()
+	configFragments := []string{
+		"flag provided but not defined",
+		"command is required",
+		"does not take a value",
+		"requires a value",
+		"unknown global flag",
+		"usage:",
+		"invalid output format",
+		"endpoint is required",
+		"read config ",
+		"parse config ",
+		"profile ",
+		"http_timeout",
+		"request_timeout",
+		"refusing to overwrite",
+		"write config ",
+		"browse-depth",
+		"at least one --item-name or --item-path is required",
+		"--interval must be greater than zero",
+		"choose either browse or read options, not both",
+	}
+	for _, fragment := range configFragments {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func isOutputError(err error) bool {
+	msg := err.Error()
+	return strings.HasPrefix(msg, "print status:") ||
+		strings.HasPrefix(msg, "print read:") ||
+		strings.HasPrefix(msg, "print watch:")
+}
+
+func isRequestError(err error) bool {
+	msg := err.Error()
+	return strings.HasPrefix(msg, "get status:") ||
+		strings.HasPrefix(msg, "browse:") ||
+		strings.HasPrefix(msg, "read:") ||
+		strings.HasPrefix(msg, "watch:")
+}
+
+func isConnectionError(err error) bool {
+	return strings.HasPrefix(err.Error(), "test connection: FAIL:")
 }
 
 func errNotImplemented(command string) error {

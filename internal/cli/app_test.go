@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,8 +41,8 @@ func TestRunUnknownCommand(t *testing.T) {
 func TestRunBadFlag(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"status", "--bad-flag"})
-	if code != exitGeneralError {
-		t.Fatalf("Run(status --bad-flag) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(status --bad-flag) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "flag provided but not defined") {
 		t.Fatalf("stderr missing bad flag error: %q", err.String())
@@ -51,8 +52,8 @@ func TestRunBadFlag(t *testing.T) {
 func TestRunMissingEndpoint(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"status"})
-	if code != exitGeneralError {
-		t.Fatalf("Run(status) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(status) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "endpoint is required") {
 		t.Fatalf("stderr missing endpoint error: %q", err.String())
@@ -62,8 +63,8 @@ func TestRunMissingEndpoint(t *testing.T) {
 func TestRunRejectsUnsupportedFormat(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"status", "--format", "jsonl"})
-	if code != exitGeneralError {
-		t.Fatalf("Run(status --format jsonl) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(status --format jsonl) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), `invalid output format "jsonl"`) {
 		t.Fatalf("stderr missing format error: %q", err.String())
@@ -73,8 +74,8 @@ func TestRunRejectsUnsupportedFormat(t *testing.T) {
 func TestRunLegacyFlagsWarns(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"-endpoint", ""})
-	if code != exitGeneralError {
-		t.Fatalf("Run(legacy missing endpoint) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(legacy missing endpoint) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "top-level flags are deprecated") {
 		t.Fatalf("stderr missing legacy warning: %q", err.String())
@@ -84,8 +85,8 @@ func TestRunLegacyFlagsWarns(t *testing.T) {
 func TestCompletionsRequiresShell(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"completions"})
-	if code != exitGeneralError {
-		t.Fatalf("Run(completions) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(completions) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "usage: opc-xml-da-cli completions bash|zsh") {
 		t.Fatalf("stderr missing completions usage: %q", err.String())
@@ -106,8 +107,8 @@ func TestCompletionsBash(t *testing.T) {
 func TestWatchRejectsInvalidInterval(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"watch", "--item-name", "A", "--interval", "0s"})
-	if code != exitGeneralError {
-		t.Fatalf("Run(watch --interval 0s) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(watch --interval 0s) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "--interval must be greater than zero") {
 		t.Fatalf("stderr missing interval error: %q", err.String())
@@ -140,8 +141,8 @@ func TestInitConfigRefusesOverwriteWithoutForce(t *testing.T) {
 		t.Fatalf("write existing config: %v", writeErr)
 	}
 	code := NewApp(&out, &err).Run([]string{"init-config", "--output", outputPath})
-	if code != exitGeneralError {
-		t.Fatalf("Run(init-config existing) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(init-config existing) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "refusing to overwrite") {
 		t.Fatalf("stderr missing overwrite refusal: %q", err.String())
@@ -195,8 +196,8 @@ func TestValidateConfigFailsForInvalidConfig(t *testing.T) {
 	var out, err bytes.Buffer
 	path := writeCLIConfig(t, `locale: en-US`)
 	code := NewApp(&out, &err).Run([]string{"validate-config", "--config", path})
-	if code != exitGeneralError {
-		t.Fatalf("Run(validate-config invalid) = %d, want %d", code, exitGeneralError)
+	if code != exitConfigError {
+		t.Fatalf("Run(validate-config invalid) = %d, want %d", code, exitConfigError)
 	}
 	if !strings.Contains(err.String(), "endpoint is required") {
 		t.Fatalf("stderr missing validation error: %q", err.String())
@@ -231,6 +232,22 @@ request_timeout: 3s
 	}
 	if opts.HTTPTimeout != 2*time.Second || opts.RequestTimeout != 3*time.Second {
 		t.Fatalf("timeouts not applied: http=%s request=%s", opts.HTTPTimeout, opts.RequestTimeout)
+	}
+}
+
+func TestMapRunError(t *testing.T) {
+	cases := map[error]int{
+		nil:                                          exitSuccess,
+		errors.New("endpoint is required"):           exitConfigError,
+		errors.New("print read: short write"):        exitOutputError,
+		errors.New("read: soap fault"):               exitRequestError,
+		errors.New("test connection: FAIL: refused"): exitConnectionError,
+		errors.New("unknown failure"):                exitGeneralError,
+	}
+	for err, want := range cases {
+		if got := mapRunError(err); got != want {
+			t.Fatalf("mapRunError(%v) = %d, want %d", err, got, want)
+		}
 	}
 }
 
