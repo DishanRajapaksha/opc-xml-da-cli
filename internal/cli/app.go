@@ -377,7 +377,7 @@ func (a *App) validateConfig(args []string) error {
 func (a *App) status(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("status")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func (a *App) status(args []string) error {
 func (a *App) browse(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("browse")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	fs.StringVar(&opts.BrowsePath, "item-name", "", "OPC browse item name")
 	fs.StringVar(&opts.BrowseItemPath, "item-path", "", "OPC browse item path")
 	fs.IntVar(&opts.BrowseDepth, "depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
@@ -418,7 +418,7 @@ func (a *App) read(args []string) error {
 	var itemPaths stringList
 	itemsFile := ""
 	fs := a.newFlagSet("read")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, json, or jsonl")
 	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
 	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
 	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
@@ -453,7 +453,7 @@ func (a *App) watch(args []string) error {
 	interval := time.Second
 	duration := time.Duration(0)
 	fs := a.newFlagSet("watch")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: text or jsonl")
 	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
 	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
 	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
@@ -487,7 +487,7 @@ func (a *App) watch(args []string) error {
 func (a *App) testConnection(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("test-connection")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -518,7 +518,7 @@ func (a *App) runLegacy(args []string) error {
 	fmt.Fprintln(a.err, "warning: top-level flags are deprecated; use status, browse, or read subcommands")
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet(appName)
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	fs.StringVar(&opts.BrowsePath, "browse-path", "", "OPC browse path (maps to ItemName)")
 	fs.StringVar(&opts.BrowseItemPath, "browse-item-path", "", "OPC browse item path (maps to ItemPath)")
 	fs.IntVar(&opts.BrowseDepth, "browse-depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
@@ -730,10 +730,10 @@ func (a *App) newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
-func addCommonFlags(fs *flag.FlagSet, opts *commandOptions) {
+func addCommonFlags(fs *flag.FlagSet, opts *commandOptions, formatHelp string) {
 	fs.StringVar(&opts.ConfigPath, "config", opts.ConfigPath, "YAML config file")
 	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
-	fs.StringVar(&opts.Format, "format", opts.Format, "output format: table, text, json, or jsonl where supported")
+	fs.StringVar(&opts.Format, "format", opts.Format, formatHelp)
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
 	fs.BoolVar(&opts.Verbose, "verbose", opts.Verbose, "print high-level connection decisions")
 	fs.BoolVar(&opts.Debug, "debug", opts.Debug, "enable lower-level client debug logging")

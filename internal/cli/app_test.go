@@ -217,7 +217,7 @@ request_timeout: 3s
 	var errOut bytes.Buffer
 	opts := defaultCommandOptions()
 	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	if err := fs.Parse([]string{"--config", path}); err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
@@ -259,7 +259,7 @@ http_timeout: 2s
 	var errOut bytes.Buffer
 	opts := defaultCommandOptions()
 	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	if err := fs.Parse([]string{"--config", path, "--endpoint", "http://override/opc"}); err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestCommandOptionsApplyConfigIgnoresMissingDefaultConfig(t *testing.T) {
 	opts := defaultCommandOptions()
 	opts.ConfigPath = filepath.Join(t.TempDir(), "missing.yaml")
 	fs := NewApp(&bytes.Buffer{}, &errOut).newFlagSet("status")
-	addCommonFlags(fs, &opts)
+	addCommonFlags(fs, &opts, "output format: table, text, or json")
 	if err := fs.Parse(nil); err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
