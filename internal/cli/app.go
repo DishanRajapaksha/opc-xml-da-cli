@@ -328,6 +328,11 @@ func globalFlagTakesValue(name string) bool {
 }
 
 func (a *App) completions(args []string) error {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprintln(a.err, "Usage of completions:")
+		fmt.Fprintln(a.err, "  opc-xml-da-cli completions bash|zsh")
+		return flag.ErrHelp
+	}
 	if len(args) != 1 {
 		return fmt.Errorf("usage: opc-xml-da-cli completions bash|zsh")
 	}

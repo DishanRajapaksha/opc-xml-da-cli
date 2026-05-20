@@ -104,6 +104,17 @@ func TestCompletionsRequiresShell(t *testing.T) {
 	}
 }
 
+func TestCompletionsHelpSucceeds(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"completions", "--help"})
+	if code != exitSuccess {
+		t.Fatalf("Run(completions --help) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(err.String(), "opc-xml-da-cli completions bash|zsh") {
+		t.Fatalf("stderr missing completions usage: %q", err.String())
+	}
+}
+
 func TestCompletionsBash(t *testing.T) {
 	var out, err bytes.Buffer
 	code := NewApp(&out, &err).Run([]string{"completions", "bash"})
