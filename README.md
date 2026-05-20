@@ -147,6 +147,17 @@ Snapshot commands support:
 - `text` (default)
 - `jsonl`
 
+## Exit Codes
+
+Stable exit codes for scripts:
+
+- `0`: success
+- `1`: general error
+- `2`: config error
+- `3`: connection error
+- `4`: XML-DA request error
+- `9`: output or formatting error
+
 ## Troubleshooting
 
 ```bash
