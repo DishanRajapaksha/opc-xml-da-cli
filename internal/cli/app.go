@@ -495,7 +495,7 @@ func (a *App) watch(args []string) error {
 func (a *App) testConnection(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("test-connection")
-	addCommonFlags(fs, &opts, "output format: table, text, or json")
+	addCommonFlagsWithoutFormat(fs, &opts)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -743,9 +743,19 @@ func (a *App) newFlagSet(name string) *flag.FlagSet {
 }
 
 func addCommonFlags(fs *flag.FlagSet, opts *commandOptions, formatHelp string) {
+	addCommonFlagsBase(fs, opts, formatHelp, true)
+}
+
+func addCommonFlagsWithoutFormat(fs *flag.FlagSet, opts *commandOptions) {
+	addCommonFlagsBase(fs, opts, "", false)
+}
+
+func addCommonFlagsBase(fs *flag.FlagSet, opts *commandOptions, formatHelp string, includeFormat bool) {
 	fs.StringVar(&opts.ConfigPath, "config", opts.ConfigPath, "YAML config file")
 	fs.StringVar(&opts.Profile, "profile", opts.Profile, "config profile name")
-	fs.StringVar(&opts.Format, "format", opts.Format, formatHelp)
+	if includeFormat {
+		fs.StringVar(&opts.Format, "format", opts.Format, formatHelp)
+	}
 	fs.StringVar(&opts.Endpoint, "endpoint", opts.Endpoint, "OPC XML-DA endpoint URL")
 	fs.BoolVar(&opts.Verbose, "verbose", opts.Verbose, "print high-level connection decisions")
 	fs.BoolVar(&opts.Debug, "debug", opts.Debug, "enable lower-level client debug logging")
