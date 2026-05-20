@@ -158,7 +158,18 @@ Stable exit codes for scripts:
 - `4`: XML-DA request error
 - `9`: output or formatting error
 
-## Troubleshooting
+## Shell Completions
+
+```bash
+# bash
+opc-xml-da-cli completions bash > /etc/bash_completion.d/opc-xml-da-cli
+
+# zsh
+mkdir -p "${HOME}/.zsh/completions"
+opc-xml-da-cli completions zsh > "${HOME}/.zsh/completions/_opc-xml-da-cli"
+```
+
+## Troubleshooting and Diagnostics
 
 ```bash
 opc-xml-da-cli status --verbose
@@ -181,3 +192,10 @@ Common flags:
 ## Legacy Flags
 
 Legacy top-level flags such as `-endpoint`, `-browse-path`, and `-read-path` are still accepted for compatibility. New scripts should use the named commands shown above.
+
+## Command Help
+
+```bash
+opc-xml-da-cli help
+opc-xml-da-cli read --help
+```
