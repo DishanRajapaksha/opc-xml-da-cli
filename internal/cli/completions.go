@@ -25,7 +25,7 @@ _opc_xml_da_cli()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="help version status browse read watch test-connection validate-config init-config completions"
+    commands="help version status browse tui read watch test-connection validate-config init-config completions"
     common_flags="--config --profile --format --endpoint --verbose --debug --dump-http --locale --client-handle --http-timeout --timeout --username --password"
     item_flags="--item-name --item-path --items"
     case "$prev" in
@@ -41,6 +41,9 @@ _opc_xml_da_cli()
     case "${COMP_WORDS[1]}" in
         browse)
             COMPREPLY=( $(compgen -W "$common_flags --item-name --item-path --depth" -- "$cur") )
+            ;;
+        tui)
+            COMPREPLY=( $(compgen -W "--config --profile --endpoint --verbose --debug --dump-http --locale --client-handle --http-timeout --timeout --username --password --item-name --item-path --interval" -- "$cur") )
             ;;
         read)
             COMPREPLY=( $(compgen -W "$common_flags $item_flags" -- "$cur") )
@@ -70,6 +73,7 @@ _opc_xml_da_cli() {
     'version:show version'
     'status:get server status'
     'browse:browse items'
+    'tui:browse items interactively'
     'read:read item values'
     'watch:poll item values'
     'test-connection:run connection diagnostics'

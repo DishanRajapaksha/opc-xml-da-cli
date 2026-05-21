@@ -12,6 +12,7 @@ A script-friendly OPC XML Data Access command-line client written in Go.
 | Get server status | `opc-xml-da-cli status` |
 | Browse from root | `opc-xml-da-cli browse --depth 1` |
 | Browse from item | `opc-xml-da-cli browse --item-name Plant.Area --depth 1` |
+| Browse interactively | `opc-xml-da-cli tui --item-name Plant.Area --interval 1s` |
 | Read one item | `opc-xml-da-cli read --item-name Plant.Area.Tag` |
 | Read multiple items | `opc-xml-da-cli read --item-name Tag.A --item-name Tag.B` |
 | Read items from file | `opc-xml-da-cli read --items items.txt` |
@@ -110,7 +111,10 @@ opc-xml-da-cli validate-config --config config.example.yaml
 opc-xml-da-cli browse --depth 1
 opc-xml-da-cli browse --item-name Plant.Area --depth 2 --format table
 opc-xml-da-cli browse --item-path /Plant/Area --format json
+opc-xml-da-cli tui --item-name Plant.Area --interval 1s
 ```
+
+The TUI opens a tree browser with item details, current reads, polling-based monitored values, and an event log. Use arrows/Enter to expand items, Tab to move focus, `r` to read once, `m` to poll-monitor, `u` to unmonitor, `R` to reload children, and `q` to exit.
 
 ### Read
 

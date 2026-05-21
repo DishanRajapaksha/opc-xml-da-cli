@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"os"
 	"path/filepath"
@@ -35,6 +36,50 @@ func TestRunSubcommandHelpSucceeds(t *testing.T) {
 	}
 	if !strings.Contains(err.String(), "Usage of read:") {
 		t.Fatalf("stderr missing read usage: %q", err.String())
+	}
+}
+
+func TestRunTUIHelpSucceeds(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"tui", "--help"})
+	if code != exitSuccess {
+		t.Fatalf("Run(tui --help) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(err.String(), "Usage of tui:") {
+		t.Fatalf("stderr missing tui usage: %q", err.String())
+	}
+}
+
+func TestRunTUIRejectsInvalidInterval(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"tui", "--interval", "0s"})
+	if code != exitConfigError {
+		t.Fatalf("Run(tui --interval 0s) = %d, want %d", code, exitConfigError)
+	}
+	if !strings.Contains(err.String(), "--interval must be greater than zero") {
+		t.Fatalf("stderr = %q", err.String())
+	}
+}
+
+func TestNormaliseGlobalFlagsSupportsTUI(t *testing.T) {
+	got, err := normaliseGlobalFlags([]string{"--endpoint", "http://example.test/OPC/DA", "tui", "--item-name", "Plant"})
+	if err != nil {
+		t.Fatalf("normaliseGlobalFlags returned error: %v", err)
+	}
+	want := []string{"tui", "--endpoint", "http://example.test/OPC/DA", "--item-name", "Plant"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("normalised args = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompletionsIncludeTUI(t *testing.T) {
+	var out, err bytes.Buffer
+	code := NewApp(&out, &err).Run([]string{"completions", "bash"})
+	if code != exitSuccess {
+		t.Fatalf("Run(completions bash) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
+	}
+	if !strings.Contains(out.String(), "tui") {
+		t.Fatalf("bash completion missing tui: %q", out.String())
 	}
 }
 
@@ -427,6 +472,24 @@ func TestRenderWatchJSONL(t *testing.T) {
 	}
 	if decoded["item_name"] != "A" {
 		t.Fatalf("decoded item_name = %v", decoded["item_name"])
+	}
+}
+
+func TestFormatXMLDAValueScalar(t *testing.T) {
+	var item service.ItemValue
+	raw := `<Items xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><Value xsi:type="xsd:double">24.1</Value></Items>`
+	if err := xml.Unmarshal([]byte(raw), &item); err != nil {
+		t.Fatalf("unmarshal item value: %v", err)
+	}
+	if got := formatXMLDAValue(item.Value); got != "24.1" {
+		t.Fatalf("formatXMLDAValue = %q, want 24.1", got)
+	}
+}
+
+func TestFormatXMLDAValueComplexFallback(t *testing.T) {
+	value := service.AnyType{InnerXML: "\n  <A> 1 </A>\n  <B>2</B>\n"}
+	if got := formatXMLDAValue(value); got != "<A>1</A><B>2</B>" {
+		t.Fatalf("formatXMLDAValue = %q", got)
 	}
 }
 

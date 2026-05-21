@@ -135,6 +135,11 @@ func printItemValue(out io.Writer, item *service.ItemValue) error {
 			return err
 		}
 	}
+	if value := formatXMLDAValue(item.Value); value != "<empty>" {
+		if _, err := fmt.Fprintf(out, "    Value: %s\n", value); err != nil {
+			return err
+		}
+	}
 	if item.ResultID != nil {
 		if _, err := fmt.Fprintf(out, "    ResultID: %s\n", *item.ResultID); err != nil {
 			return err

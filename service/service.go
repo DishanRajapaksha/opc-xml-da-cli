@@ -342,8 +342,7 @@ type PropertyReplyList struct {
 }
 
 type ItemProperty struct {
-	Value struct {
-	} `xml:"Value,omitempty" json:"Value,omitempty"`
+	Value AnyType `xml:"Value,omitempty" json:"Value,omitempty"`
 
 	Name *QName `xml:"Name,attr,omitempty" json:"Name,omitempty"`
 
@@ -482,8 +481,7 @@ type SubscribeItemValue struct {
 type ItemValue struct {
 	DiagnosticInfo string `xml:"DiagnosticInfo,omitempty" json:"DiagnosticInfo,omitempty"`
 
-	Value struct {
-	} `xml:"Value,omitempty" json:"Value,omitempty"`
+	Value AnyType `xml:"Value,omitempty" json:"Value,omitempty"`
 
 	Quality *OPCQuality `xml:"Quality,omitempty" json:"Quality,omitempty"`
 

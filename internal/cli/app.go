@@ -107,6 +107,8 @@ func (a *App) Run(args []string) int {
 		err = a.status(args[1:])
 	case "browse":
 		err = a.browse(args[1:])
+	case "tui":
+		err = a.tui(args[1:])
 	case "read":
 		err = a.read(args[1:])
 	case "watch":
@@ -311,7 +313,7 @@ func commandSupportsGlobalFlag(command string, name string) bool {
 	switch command {
 	case "validate-config":
 		return name == "--config" || name == "--profile"
-	case "status", "browse", "read", "watch", "test-connection":
+	case "status", "browse", "tui", "read", "watch", "test-connection":
 		return true
 	default:
 		return false
@@ -868,13 +870,14 @@ func (a *App) renderRead(format string, resp *service.ReadResponse) error {
 				rows = append(rows, []string{
 					item.ItemPath,
 					item.ItemName,
+					formatXMLDAValue(item.Value),
 					formatOPCQuality(item.Quality),
 					formatXsdDateTime(item.Timestamp),
 					item.DiagnosticInfo,
 				})
 			}
 		}
-		return output.WriteTable(a.out, []string{"ItemPath", "ItemName", "Quality", "Timestamp", "DiagnosticInfo"}, rows)
+		return output.WriteTable(a.out, []string{"ItemPath", "ItemName", "Value", "Quality", "Timestamp", "DiagnosticInfo"}, rows)
 	default:
 		return invalidSnapshotFormat(format)
 	}
@@ -988,6 +991,7 @@ Usage:
   opc-xml-da-cli [global flags] <command> [flags]
   opc-xml-da-cli status --endpoint URL
   opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
+  opc-xml-da-cli tui --endpoint URL --item-name PATH --interval 1s
   opc-xml-da-cli read --endpoint URL --item-name PATH
   opc-xml-da-cli watch --endpoint URL --item-name PATH --interval 1s
   opc-xml-da-cli test-connection --endpoint URL
@@ -999,6 +1003,7 @@ Usage:
 Commands:
   status           Fetch OPC XML-DA GetStatus
   browse           Browse OPC XML-DA items
+  tui              Browse OPC XML-DA items interactively
   read             Read an OPC XML-DA item
   watch            Poll item values
   test-connection  Run connection diagnostics
