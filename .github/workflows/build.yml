@@ -1,12 +1,63 @@
 name: build
 
 on:
+  pull_request:
   push:
     tags:
       - "*"
 
 jobs:
+  test-contracts:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Apply CLI contract migration
+        run: python3 scripts/apply-cli-contracts.py
+
+      - name: Format
+        run: gofmt -w internal/output/output.go internal/cli/app.go internal/cli/contracts_test.go
+
+      - name: Test
+        id: tests
+        continue-on-error: true
+        run: go test ./... 2>&1 | tee test.log
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: go build ./... 2>&1 | tee build.log
+
+      - name: Package migrated files
+        if: always()
+        run: |
+          tar -czf cli-contracts.tar.gz \
+            internal/output/output.go \
+            internal/cli/app.go \
+            internal/cli/contracts_test.go \
+            README.md \
+            test.log \
+            build.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cli-contracts
+          path: cli-contracts.tar.gz
+
+      - name: Fail on validation errors
+        if: steps.tests.outcome == 'failure' || steps.build.outcome == 'failure'
+        run: exit 1
+
   build:
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     runs-on: ubuntu-latest
