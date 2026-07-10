@@ -30,6 +30,8 @@ const (
 	exitConfigError       = 2
 	exitConnectionError   = 3
 	exitRequestError      = 4
+	exitWriteRejected     = 7
+	exitTimeout           = 8
 	exitOutputError       = 9
 )
 
@@ -148,6 +150,9 @@ func mapRunError(err error) int {
 	if isConfigError(err) {
 		return exitConfigError
 	}
+	if isTimeoutError(err) {
+		return exitTimeout
+	}
 	if isOutputError(err) {
 		return exitOutputError
 	}
@@ -192,6 +197,10 @@ func isConfigError(err error) bool {
 		}
 	}
 	return false
+}
+
+func isTimeoutError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || strings.Contains(strings.ToLower(err.Error()), "timeout")
 }
 
 func isOutputError(err error) bool {
@@ -387,7 +396,7 @@ func (a *App) validateConfig(args []string) error {
 func (a *App) status(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("status")
-	addCommonFlags(fs, &opts, "output format: table, text, or json")
+	addCommonFlags(fs, &opts, "output format: table, text, json, or csv")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -403,7 +412,7 @@ func (a *App) status(args []string) error {
 func (a *App) browse(args []string) error {
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet("browse")
-	addCommonFlags(fs, &opts, "output format: table, text, or json")
+	addCommonFlags(fs, &opts, "output format: table, text, json, or csv")
 	fs.StringVar(&opts.BrowsePath, "item-name", "", "OPC browse item name")
 	fs.StringVar(&opts.BrowseItemPath, "item-path", "", "OPC browse item path")
 	fs.IntVar(&opts.BrowseDepth, "depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
@@ -428,7 +437,7 @@ func (a *App) read(args []string) error {
 	var itemPaths stringList
 	itemsFile := ""
 	fs := a.newFlagSet("read")
-	addCommonFlags(fs, &opts, "output format: table, text, json, or jsonl")
+	addCommonFlags(fs, &opts, "output format: table, text, json, or csv")
 	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
 	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
 	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
@@ -463,7 +472,7 @@ func (a *App) watch(args []string) error {
 	interval := time.Second
 	duration := time.Duration(0)
 	fs := a.newFlagSet("watch")
-	addCommonFlags(fs, &opts, "output format: text or jsonl")
+	addCommonFlags(fs, &opts, "output format: text, jsonl, or csv")
 	fs.Var(&itemNames, "item-name", "OPC read item name; repeat for multiple items")
 	fs.Var(&itemPaths, "item-path", "OPC read item path; repeat for multiple items")
 	fs.StringVar(&itemsFile, "items", "", "path to file with one item name per line")
@@ -532,7 +541,7 @@ func (a *App) runLegacy(args []string) error {
 	fmt.Fprintln(a.err, "warning: top-level flags are deprecated; use status, browse, or read subcommands")
 	opts := defaultCommandOptions()
 	fs := a.newFlagSet(appName)
-	addCommonFlags(fs, &opts, "output format: table, text, or json")
+	addCommonFlags(fs, &opts, "output format: table, text, json, or csv")
 	fs.StringVar(&opts.BrowsePath, "browse-path", "", "OPC browse path (maps to ItemName)")
 	fs.StringVar(&opts.BrowseItemPath, "browse-item-path", "", "OPC browse item path (maps to ItemPath)")
 	fs.IntVar(&opts.BrowseDepth, "browse-depth", opts.BrowseDepth, "max browse depth (1 = direct children only)")
@@ -605,6 +614,11 @@ func (a *App) runRead(opts commandOptions) error {
 	if err != nil {
 		return err
 	}
+	if output.NormaliseFormat(opts.Format) == output.FormatCSV {
+		if err := output.WriteCSV(a.out, readHeaders(), nil); err != nil {
+			return fmt.Errorf("print read: %w", err)
+		}
+	}
 	for _, item := range opts.ReadItems {
 		slog.Info("read requested", "item_path", item.ItemPath, "item_name", item.ItemName)
 		resp, err := FetchNodeValue(ctx, opcService, opts.Locale, opts.ClientHandle, item.ItemPath, item.ItemName)
@@ -634,6 +648,11 @@ func (a *App) runWatch(opts commandOptions, interval, duration time.Duration) er
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	if output.NormaliseFormat(opts.Format) == output.FormatCSV {
+		if err := output.WriteCSV(a.out, readHeaders(), nil); err != nil {
+			return fmt.Errorf("print watch: %w", err)
+		}
+	}
 	for {
 		for _, item := range opts.ReadItems {
 			resp, err := FetchNodeValue(runCtx, opcService, opts.Locale, opts.ClientHandle, item.ItemPath, item.ItemName)
@@ -806,78 +825,92 @@ func (opts *commandOptions) applyConfig(fs *flag.FlagSet) error {
 	return nil
 }
 
+func readHeaders() []string {
+	return []string{"ItemPath", "ItemName", "Value", "Quality", "Timestamp", "DiagnosticInfo"}
+}
+
+func readResponseRows(resp *service.ReadResponse) [][]string {
+	rows := [][]string{}
+	if resp == nil || resp.RItemList == nil {
+		return rows
+	}
+	for _, item := range resp.RItemList.Items {
+		if item == nil {
+			continue
+		}
+		rows = append(rows, []string{
+			item.ItemPath,
+			item.ItemName,
+			formatXMLDAValue(item.Value),
+			formatOPCQuality(item.Quality),
+			formatXsdDateTime(item.Timestamp),
+			item.DiagnosticInfo,
+		})
+	}
+	return rows
+}
+
 func (a *App) renderStatus(format string, resp *service.GetStatusResponse) error {
+	rows := [][]string{}
+	if resp != nil && resp.GetStatusResult != nil && resp.GetStatusResult.ServerState != nil {
+		rows = append(rows, []string{"server_state", string(*resp.GetStatusResult.ServerState)})
+	}
+	if resp != nil && resp.Status != nil {
+		if resp.Status.StatusInfo != "" {
+			rows = append(rows, []string{"status_info", resp.Status.StatusInfo})
+		}
+		if resp.Status.VendorInfo != "" {
+			rows = append(rows, []string{"vendor_info", resp.Status.VendorInfo})
+		}
+		if resp.Status.ProductVersion != "" {
+			rows = append(rows, []string{"product_version", resp.Status.ProductVersion})
+		}
+	}
 	switch output.NormaliseFormat(format) {
 	case output.FormatText:
 		return PrintStatus(a.out, resp)
 	case output.FormatJSON:
 		return output.WriteJSON(a.out, resp)
 	case output.FormatTable:
-		rows := [][]string{}
-		if resp != nil && resp.GetStatusResult != nil && resp.GetStatusResult.ServerState != nil {
-			rows = append(rows, []string{"server_state", string(*resp.GetStatusResult.ServerState)})
-		}
-		if resp != nil && resp.Status != nil {
-			if resp.Status.StatusInfo != "" {
-				rows = append(rows, []string{"status_info", resp.Status.StatusInfo})
-			}
-			if resp.Status.VendorInfo != "" {
-				rows = append(rows, []string{"vendor_info", resp.Status.VendorInfo})
-			}
-			if resp.Status.ProductVersion != "" {
-				rows = append(rows, []string{"product_version", resp.Status.ProductVersion})
-			}
-		}
 		return output.WriteTable(a.out, []string{"Field", "Value"}, rows)
+	case output.FormatCSV:
+		return output.WriteCSV(a.out, []string{"Field", "Value"}, rows)
 	default:
 		return invalidSnapshotFormat(format)
 	}
 }
 
 func (a *App) renderBrowse(format string, elements []*service.BrowseElement) error {
+	rows := make([][]string, 0, len(elements))
+	for _, el := range elements {
+		if el == nil {
+			continue
+		}
+		rows = append(rows, []string{browseElementName(el), el.ItemPath, el.ItemName, fmt.Sprint(el.IsItem), fmt.Sprint(el.HasChildren)})
+	}
 	switch output.NormaliseFormat(format) {
 	case output.FormatJSON:
 		return output.WriteJSON(a.out, elements)
 	case output.FormatTable:
-		rows := make([][]string, 0, len(elements))
-		for _, el := range elements {
-			if el == nil {
-				continue
-			}
-			rows = append(rows, []string{browseElementName(el), el.ItemPath, el.ItemName, fmt.Sprint(el.IsItem), fmt.Sprint(el.HasChildren)})
-		}
 		return output.WriteTable(a.out, []string{"Name", "ItemPath", "ItemName", "IsItem", "HasChildren"}, rows)
+	case output.FormatCSV:
+		return output.WriteCSV(a.out, []string{"Name", "ItemPath", "ItemName", "IsItem", "HasChildren"}, rows)
 	default:
 		return invalidSnapshotFormat(format)
 	}
 }
 
 func (a *App) renderRead(format string, resp *service.ReadResponse) error {
+	rows := readResponseRows(resp)
 	switch output.NormaliseFormat(format) {
 	case output.FormatText:
 		return PrintRead(a.out, resp)
 	case output.FormatJSON:
 		return output.WriteJSON(a.out, resp)
-	case output.FormatJSONL:
-		return output.WriteJSONLine(a.out, resp)
 	case output.FormatTable:
-		rows := [][]string{}
-		if resp != nil && resp.RItemList != nil {
-			for _, item := range resp.RItemList.Items {
-				if item == nil {
-					continue
-				}
-				rows = append(rows, []string{
-					item.ItemPath,
-					item.ItemName,
-					formatXMLDAValue(item.Value),
-					formatOPCQuality(item.Quality),
-					formatXsdDateTime(item.Timestamp),
-					item.DiagnosticInfo,
-				})
-			}
-		}
-		return output.WriteTable(a.out, []string{"ItemPath", "ItemName", "Value", "Quality", "Timestamp", "DiagnosticInfo"}, rows)
+		return output.WriteTable(a.out, readHeaders(), rows)
+	case output.FormatCSV:
+		return output.WriteCSVRows(a.out, rows)
 	default:
 		return invalidSnapshotFormat(format)
 	}
@@ -893,6 +926,8 @@ func (a *App) renderWatch(format string, item itemRef, resp *service.ReadRespons
 			"item_name": item.ItemName,
 			"response":  resp,
 		})
+	case output.FormatCSV:
+		return output.WriteCSVRows(a.out, readResponseRows(resp))
 	default:
 		return invalidWatchFormat(format)
 	}
@@ -900,7 +935,7 @@ func (a *App) renderWatch(format string, item itemRef, resp *service.ReadRespons
 
 func validateSnapshotFormat(format string) error {
 	switch output.NormaliseFormat(format) {
-	case output.FormatText, output.FormatTable, output.FormatJSON:
+	case output.FormatText, output.FormatTable, output.FormatJSON, output.FormatCSV:
 		return nil
 	default:
 		return invalidSnapshotFormat(format)
@@ -908,12 +943,12 @@ func validateSnapshotFormat(format string) error {
 }
 
 func invalidSnapshotFormat(format string) error {
-	return fmt.Errorf("invalid output format %q; expected table, text, or json", format)
+	return fmt.Errorf("invalid output format %q; expected table, text, json, or csv", format)
 }
 
 func validateWatchFormat(format string) error {
 	switch output.NormaliseFormat(format) {
-	case output.FormatText, output.FormatJSONL:
+	case output.FormatText, output.FormatJSONL, output.FormatCSV:
 		return nil
 	default:
 		return invalidWatchFormat(format)
@@ -921,16 +956,11 @@ func validateWatchFormat(format string) error {
 }
 
 func invalidWatchFormat(format string) error {
-	return fmt.Errorf("invalid output format %q; expected text or jsonl", format)
+	return fmt.Errorf("invalid output format %q; expected text, jsonl, or csv", format)
 }
 
 func validateReadFormat(format string) error {
-	switch output.NormaliseFormat(format) {
-	case output.FormatText, output.FormatTable, output.FormatJSON, output.FormatJSONL:
-		return nil
-	default:
-		return fmt.Errorf("invalid output format %q; expected table, text, json, or jsonl", format)
-	}
+	return validateSnapshotFormat(format)
 }
 
 func shouldLoadConfig(path string, visited map[string]bool) bool {

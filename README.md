@@ -18,7 +18,7 @@ A script-friendly OPC XML Data Access command-line client written in Go.
 | Read items from file | `opc-xml-da-cli read --items items.txt` |
 | Watch by polling | `opc-xml-da-cli watch --item-name Plant.Area.Tag --interval 1s` |
 | JSON output | `opc-xml-da-cli read --item-name Plant.Area.Tag --format json` |
-| JSON Lines read | `opc-xml-da-cli read --items items.txt --format jsonl` |
+| CSV read | `opc-xml-da-cli read --items items.txt --format csv` |
 | JSON Lines watch | `opc-xml-da-cli watch --item-name Plant.Area.Tag --interval 1s --duration 10s --format jsonl` |
 
 ## Install
@@ -122,7 +122,7 @@ The TUI opens a tree browser with item details, current reads, polling-based mon
 opc-xml-da-cli read --item-name Plant.Area.Tag
 opc-xml-da-cli read --item-name Tag.A --item-name Tag.B --format table
 opc-xml-da-cli read --items items.txt --format json
-opc-xml-da-cli read --items items.txt --format jsonl
+opc-xml-da-cli read --items items.txt --format csv
 ```
 
 `items.txt` uses one item name per line. Blank lines and `#` comments are ignored.
@@ -144,12 +144,13 @@ Snapshot commands support:
 - `text`
 - `json`
 
-`read` also supports `jsonl`, with one read response per line.
+`read` supports the snapshot formats `table`, `text`, `json`, and `csv`.
 
 `watch` supports:
 
 - `text` (default)
 - `jsonl`
+- `csv`
 
 ## Troubleshooting and Diagnostics
 
@@ -190,7 +191,9 @@ Stable exit codes for scripts:
 - `1`: general error
 - `2`: config error
 - `3`: connection error
-- `4`: XML-DA request error
+- `4`: protocol or request error
+- `7`: write or control rejected (reserved)
+- `8`: operation timeout
 - `9`: output or formatting error
 
 ## Legacy Flags
