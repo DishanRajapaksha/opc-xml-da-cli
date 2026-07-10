@@ -6,13 +6,19 @@ on:
     tags:
       - "*"
 
+permissions:
+  contents: write
+
 jobs:
-  test-contracts:
+  commit-contracts:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: agent/align-cli-contracts
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -26,103 +32,102 @@ jobs:
         run: gofmt -w internal/output/output.go internal/cli/app.go internal/cli/contracts_test.go
 
       - name: Test
-        id: tests
-        continue-on-error: true
-        run: go test ./... 2>&1 | tee test.log
+        run: go test ./...
 
       - name: Build
-        id: build
-        continue-on-error: true
-        run: go build ./... 2>&1 | tee build.log
+        run: go build ./...
 
-      - name: Package migrated files
-        if: always()
+      - name: Commit verified changes
         run: |
-          tar -czf cli-contracts.tar.gz \
-            internal/output/output.go \
-            internal/cli/app.go \
-            internal/cli/contracts_test.go \
-            README.md \
-            test.log \
-            build.log
+          rm scripts/apply-cli-contracts.py
+          rm .github/workflows/apply-cli-contracts.yml
+          cat > .github/workflows/build.yml <<'EOF'
+          name: build
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: cli-contracts
-          path: cli-contracts.tar.gz
+          on:
+            push:
+              tags:
+                - "*"
 
-      - name: Fail on validation errors
-        if: steps.tests.outcome == 'failure' || steps.build.outcome == 'failure'
-        run: exit 1
+          jobs:
+            build:
+              permissions:
+                contents: read
+              runs-on: ubuntu-latest
+              strategy:
+                fail-fast: false
+                matrix:
+                  include:
+                    - goos: linux
+                      goarch: amd64
+                      ext: ""
+                    - goos: linux
+                      goarch: arm64
+                      ext: ""
+                    - goos: darwin
+                      goarch: amd64
+                      ext: ""
+                    - goos: darwin
+                      goarch: arm64
+                      ext: ""
+                    - goos: windows
+                      goarch: amd64
+                      ext: ".exe"
+                    - goos: windows
+                      goarch: arm64
+                      ext: ".exe"
+
+              steps:
+                - name: Checkout
+                  uses: actions/checkout@v4
+
+                - name: Set up Go
+                  uses: actions/setup-go@v5
+                  with:
+                    go-version-file: go.mod
+
+                - name: Build
+                  env:
+                    GOOS: ${{ matrix.goos }}
+                    GOARCH: ${{ matrix.goarch }}
+                    CGO_ENABLED: "0"
+                  run: |
+                    mkdir -p dist
+                    go build -trimpath -ldflags="-s -w" -o "dist/opc-xml-da-cli-${GOOS}-${GOARCH}${{ matrix.ext }}" .
+
+                - name: Upload artifact
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: opc-xml-da-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+                    path: dist/opc-xml-da-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+
+            release:
+              needs: build
+              if: startsWith(github.ref, 'refs/tags/')
+              runs-on: ubuntu-latest
+              permissions:
+                contents: write
+              steps:
+                - name: Download artifacts
+                  uses: actions/download-artifact@v4
+                  with:
+                    path: dist
+                    merge-multiple: true
+
+                - name: Create release
+                  uses: softprops/action-gh-release@v2
+                  with:
+                    files: dist/*
+                    generate_release_notes: true
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Align CLI contracts"
+          git push origin HEAD:agent/align-cli-contracts
 
   build:
     if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: read
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-            ext: ""
-          - goos: linux
-            goarch: arm64
-            ext: ""
-          - goos: darwin
-            goarch: amd64
-            ext: ""
-          - goos: darwin
-            goarch: arm64
-            ext: ""
-          - goos: windows
-            goarch: amd64
-            ext: ".exe"
-          - goos: windows
-            goarch: arm64
-            ext: ".exe"
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: |
-          mkdir -p dist
-          go build -trimpath -ldflags="-s -w" -o "dist/opc-xml-da-cli-${GOOS}-${GOARCH}${{ matrix.ext }}" .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: opc-xml-da-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/opc-xml-da-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
-
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
+      - run: echo "tag build is handled by the restored workflow"
