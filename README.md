@@ -143,8 +143,7 @@ Snapshot commands support:
 - `table` (default)
 - `text`
 - `json`
-
-`read` supports the snapshot formats `table`, `text`, `json`, and `csv`.
+- `csv`
 
 `watch` supports:
 

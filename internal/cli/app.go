@@ -891,7 +891,7 @@ func (a *App) renderBrowse(format string, elements []*service.BrowseElement) err
 	switch output.NormaliseFormat(format) {
 	case output.FormatJSON:
 		return output.WriteJSON(a.out, elements)
-	case output.FormatTable:
+	case output.FormatTable, output.FormatText:
 		return output.WriteTable(a.out, []string{"Name", "ItemPath", "ItemName", "IsItem", "HasChildren"}, rows)
 	case output.FormatCSV:
 		return output.WriteCSV(a.out, []string{"Name", "ItemPath", "ItemName", "IsItem", "HasChildren"}, rows)
