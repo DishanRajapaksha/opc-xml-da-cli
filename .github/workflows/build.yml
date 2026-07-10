@@ -26,10 +26,12 @@ jobs:
           go-version-file: go.mod
 
       - name: Apply CLI contract migration
-        run: python3 scripts/apply-cli-contracts.py
+        run: |
+          python3 scripts/apply-cli-contracts.py
+          python3 scripts/fix-cli-contract-tests.py
 
       - name: Format
-        run: gofmt -w internal/output/output.go internal/cli/app.go internal/cli/contracts_test.go
+        run: gofmt -w internal/output/output.go internal/cli/app.go internal/cli/app_test.go internal/cli/contracts_test.go
 
       - name: Test
         run: go test ./...
@@ -40,6 +42,7 @@ jobs:
       - name: Commit verified changes
         run: |
           rm scripts/apply-cli-contracts.py
+          rm scripts/fix-cli-contract-tests.py
           rm .github/workflows/apply-cli-contracts.yml
           cat > .github/workflows/build.yml <<'EOF'
           name: build
