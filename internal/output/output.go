@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ const (
 	FormatText  = "text"
 	FormatJSON  = "json"
 	FormatJSONL = "jsonl"
+	FormatCSV   = "csv"
 )
 
 func NormaliseFormat(value string) string {
@@ -25,6 +27,8 @@ func NormaliseFormat(value string) string {
 		return FormatJSON
 	case FormatJSONL:
 		return FormatJSONL
+	case FormatCSV:
+		return FormatCSV
 	default:
 		return value
 	}
@@ -47,4 +51,21 @@ func WriteTable(w io.Writer, headers []string, rows [][]string) error {
 		fmt.Fprintln(tw, strings.Join(row, "\t"))
 	}
 	return tw.Flush()
+}
+
+func WriteCSV(w io.Writer, headers []string, rows [][]string) error {
+	cw := csv.NewWriter(w)
+	if len(headers) > 0 {
+		if err := cw.Write(headers); err != nil {
+			return err
+		}
+	}
+	if err := cw.WriteAll(rows); err != nil {
+		return err
+	}
+	return cw.Error()
+}
+
+func WriteCSVRows(w io.Writer, rows [][]string) error {
+	return WriteCSV(w, nil, rows)
 }

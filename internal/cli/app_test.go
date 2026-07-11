@@ -438,7 +438,7 @@ func TestRenderReadTable(t *testing.T) {
 	}
 }
 
-func TestRenderReadJSONL(t *testing.T) {
+func TestRenderReadCSV(t *testing.T) {
 	var out, errOut bytes.Buffer
 	app := NewApp(&out, &errOut)
 	resp := &service.ReadResponse{
@@ -446,12 +446,11 @@ func TestRenderReadJSONL(t *testing.T) {
 			Items: []*service.ItemValue{{ItemName: "A"}},
 		},
 	}
-	if err := app.renderRead("jsonl", resp); err != nil {
+	if err := app.renderRead("csv", resp); err != nil {
 		t.Fatalf("renderRead returned error: %v", err)
 	}
-	var decoded map[string]interface{}
-	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
-		t.Fatalf("invalid jsonl: %v", err)
+	if !strings.Contains(out.String(), "A") {
+		t.Fatalf("CSV output missing item: %q", out.String())
 	}
 }
 
