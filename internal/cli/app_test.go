@@ -177,7 +177,7 @@ func TestCompletionsBash(t *testing.T) {
 	if code != exitSuccess {
 		t.Fatalf("Run(completions bash) = %d, want %d; stderr=%q", code, exitSuccess, err.String())
 	}
-	if !strings.Contains(out.String(), "complete -F _opc_xml_da_cli opc-xml-da-cli") {
+	if !strings.Contains(out.String(), "complete -F _opc_xml_da_cli_completion opc-xml-da-cli") {
 		t.Fatalf("bash completion missing function registration")
 	}
 }
