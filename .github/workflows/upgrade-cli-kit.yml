@@ -1,0 +1,28 @@
+name: Prepare corrected CLI kit dependency
+
+on:
+  push:
+    branches:
+      - agent/adopt-command-registry
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: |
+          go get github.com/DishanRajapaksha/industrial-cli-kit@cd602304d5057891c559de21bf4f4c73891e4cd7
+          go mod tidy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-cli-kit-module-files
+          path: |
+            go.mod
+            go.sum
