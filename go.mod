@@ -3,7 +3,7 @@ module opc-xml-da-cli
 go 1.24.0
 
 require (
-	github.com/DishanRajapaksha/industrial-cli-kit v0.1.1-0.20260712101327-cd602304d505
+	github.com/DishanRajapaksha/industrial-cli-kit v0.1.1-0.20260712103734-affb87edac45
 	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/hooklift/gowsdl v0.5.0
 	github.com/rivo/tview v0.42.0
