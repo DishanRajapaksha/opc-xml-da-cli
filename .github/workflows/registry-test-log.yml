@@ -1,0 +1,25 @@
+name: Capture registry test failure
+
+on:
+  push:
+    branches:
+      - agent/adopt-command-registry
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Capture tests
+        run: go test ./... > test.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registry-test-log
+          path: test.log
