@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DishanRajapaksha/industrial-cli-kit/exitcode"
 	"github.com/hooklift/gowsdl/soap"
 
 	"opc-xml-da-cli/internal/config"
@@ -25,14 +26,14 @@ const (
 	defaultHTTPTimeout    = 30 * time.Second
 	defaultRequestTimeout = 90 * time.Second
 	defaultLogLevel       = "warn"
-	exitSuccess           = 0
-	exitGeneralError      = 1
-	exitConfigError       = 2
-	exitConnectionError   = 3
-	exitRequestError      = 4
-	exitWriteRejected     = 7
-	exitTimeout           = 8
-	exitOutputError       = 9
+	exitSuccess           = int(exitcode.Success)
+	exitGeneralError      = int(exitcode.General)
+	exitConfigError       = int(exitcode.Config)
+	exitConnectionError   = int(exitcode.Connection)
+	exitRequestError      = int(exitcode.Request)
+	exitWriteRejected     = int(exitcode.Rejected)
+	exitTimeout           = int(exitcode.Timeout)
+	exitOutputError       = int(exitcode.Output)
 )
 
 type App struct {
