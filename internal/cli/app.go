@@ -1016,47 +1016,5 @@ func parseLogLevel(value string) (slog.Level, error) {
 }
 
 func (a *App) printUsage() {
-	fmt.Fprintln(a.out, `opc-xml-da-cli is a small OPC XML-DA command-line client.
-
-Usage:
-  opc-xml-da-cli [global flags] <command> [flags]
-  opc-xml-da-cli status --endpoint URL
-  opc-xml-da-cli browse --endpoint URL --item-name PATH --depth 1
-  opc-xml-da-cli tui --endpoint URL --item-name PATH --interval 1s
-  opc-xml-da-cli read --endpoint URL --item-name PATH
-  opc-xml-da-cli watch --endpoint URL --item-name PATH --interval 1s
-  opc-xml-da-cli test-connection --endpoint URL
-  opc-xml-da-cli validate-config --config config.yaml
-  opc-xml-da-cli init-config
-  opc-xml-da-cli completions zsh
-  opc-xml-da-cli version
-
-Commands:
-  status           Fetch OPC XML-DA GetStatus
-  browse           Browse OPC XML-DA items
-  tui              Browse OPC XML-DA items interactively
-  read             Read an OPC XML-DA item
-  watch            Poll item values
-  test-connection  Run connection diagnostics
-  validate-config  Validate local config
-  init-config      Write starter config
-  completions      Generate shell completions
-  version          Print version information
-
-Common flags:
-  --endpoint          OPC XML-DA endpoint URL
-  --config            YAML config file, defaults to config.yaml
-  --profile           Config profile name
-  --format            Output format; run <command> --help for supported formats
-  --locale            Locale ID
-  --client-handle     Client request handle
-  --http-timeout      HTTP dial timeout
-  --timeout           End-to-end request timeout
-  --username          Basic auth username
-  --password          Basic auth password
-  --verbose           Print high-level connection decisions
-  --debug             Enable lower-level client debug logging
-  --dump-http         Dump HTTP request/response details to stderr
-
-Legacy top-level flags such as -endpoint, -browse-path, and -read-path are still accepted.`)
+	a.writeRegistryUsage()
 }
