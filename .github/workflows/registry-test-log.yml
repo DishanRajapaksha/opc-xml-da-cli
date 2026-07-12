@@ -17,9 +17,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Capture tests
-        run: go test ./... > test.log 2>&1 || true
+      - name: Capture tests and completion output
+        run: |
+          go test ./... > test.log 2>&1 || true
+          go run . completions bash > completion.txt 2> completion.err || true
       - uses: actions/upload-artifact@v4
         with:
-          name: registry-test-log
-          path: test.log
+          name: registry-diagnostics
+          path: |
+            test.log
+            completion.txt
+            completion.err
