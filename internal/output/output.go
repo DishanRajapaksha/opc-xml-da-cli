@@ -1,71 +1,31 @@
 package output
 
 import (
-	"encoding/csv"
-	"encoding/json"
-	"fmt"
 	"io"
-	"strings"
-	"text/tabwriter"
+
+	shared "github.com/DishanRajapaksha/industrial-cli-kit/output"
 )
+
+var ErrOutput = shared.ErrOutput
 
 const (
-	FormatTable = "table"
-	FormatText  = "text"
-	FormatJSON  = "json"
-	FormatJSONL = "jsonl"
-	FormatCSV   = "csv"
+	FormatTable = shared.FormatTable
+	FormatText  = shared.FormatText
+	FormatJSON  = shared.FormatJSON
+	FormatJSONL = shared.FormatJSONL
+	FormatCSV   = shared.FormatCSV
 )
 
-func NormaliseFormat(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", FormatText:
-		return FormatText
-	case FormatTable:
-		return FormatTable
-	case FormatJSON:
-		return FormatJSON
-	case FormatJSONL:
-		return FormatJSONL
-	case FormatCSV:
-		return FormatCSV
-	default:
-		return value
-	}
-}
-
-func WriteJSON(w io.Writer, value interface{}) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(value)
-}
-
-func WriteJSONLine(w io.Writer, value interface{}) error {
-	return json.NewEncoder(w).Encode(value)
-}
-
+func NormaliseFormat(value string) string                        { return shared.NormaliseFormat(value) }
+func ValidateSnapshotFormat(value string) error                  { return shared.ValidateSnapshotFormat(value) }
+func ValidateStreamFormat(value string) error                    { return shared.ValidateStreamFormat(value) }
+func WriteJSON(w io.Writer, value interface{}) error             { return shared.WriteJSON(w, value) }
+func WriteJSONLine(w io.Writer, value interface{}) error         { return shared.WriteJSONLine(w, value) }
+func WriteText(w io.Writer, value interface{}) error             { return shared.WriteText(w, value) }
 func WriteTable(w io.Writer, headers []string, rows [][]string) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, strings.Join(headers, "\t"))
-	for _, row := range rows {
-		fmt.Fprintln(tw, strings.Join(row, "\t"))
-	}
-	return tw.Flush()
+	return shared.WriteTable(w, headers, rows)
 }
-
 func WriteCSV(w io.Writer, headers []string, rows [][]string) error {
-	cw := csv.NewWriter(w)
-	if len(headers) > 0 {
-		if err := cw.Write(headers); err != nil {
-			return err
-		}
-	}
-	if err := cw.WriteAll(rows); err != nil {
-		return err
-	}
-	return cw.Error()
+	return shared.WriteCSV(w, headers, rows)
 }
-
-func WriteCSVRows(w io.Writer, rows [][]string) error {
-	return WriteCSV(w, nil, rows)
-}
+func WriteCSVRows(w io.Writer, rows [][]string) error { return shared.WriteCSVRows(w, rows) }
