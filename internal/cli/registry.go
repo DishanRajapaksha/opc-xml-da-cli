@@ -25,12 +25,20 @@ var cliRegistry = command.Registry{
 		{Name: "tui", Summary: "Browse items interactively", Flags: registryFlags("item-name", "item-path", "interval")},
 		{Name: "read", Summary: "Read item values", Flags: registryFlags("item-name", "item-path", "items")},
 		{Name: "watch", Summary: "Poll item values", Flags: registryFlags("item-name", "item-path", "items", "interval", "duration")},
-		{Name: "test-connection", Summary: "Run connection diagnostics"},
-		{Name: "validate-config", Summary: "Validate local config"},
-		{Name: "init-config", Summary: "Write a starter YAML config", Flags: registryFlags("output", "force")},
-		{Name: "completions", Summary: "Generate shell completion scripts"},
-		{Name: "help", Summary: "Print help"},
-		{Name: "version", Summary: "Print version information"},
+		{
+			Name:        "test-connection",
+			Summary:     "Run connection diagnostics",
+			GlobalFlags: []string{"config", "profile", "endpoint", "verbose", "debug", "dump-http", "locale", "client-handle", "http-timeout", "timeout", "username", "password"},
+		},
+		{
+			Name:        "validate-config",
+			Summary:     "Validate local config",
+			GlobalFlags: []string{"config", "profile"},
+		},
+		{Name: "init-config", Summary: "Write a starter YAML config", Flags: registryFlags("output", "force"), GlobalFlags: []string{}},
+		{Name: "completions", Summary: "Generate shell completion scripts", LeadingArgs: 1, GlobalFlags: []string{}},
+		{Name: "help", Summary: "Print help", GlobalFlags: []string{}},
+		{Name: "version", Summary: "Print version information", GlobalFlags: []string{}},
 	},
 }
 
