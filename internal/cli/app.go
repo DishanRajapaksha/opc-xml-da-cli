@@ -229,6 +229,9 @@ func errNotImplemented(command string) error {
 }
 
 func normaliseGlobalFlags(args []string) ([]string, error) {
+	if len(args) > 0 && strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[0], "--") {
+		return args, nil
+	}
 	return command.NormalizeGlobalFlagsForRegistry(args, cliRegistry)
 }
 
